@@ -187,20 +187,30 @@ await step("compare", paths.report, async () => {
 					? "review"
 					: "pass";
 		if (verdict !== "pass" && actual) {
+			const panels = [
+				...(originalFile ? [panel(originalFile, "Original (PowerPoint)")] : []),
+				panel(file, "Slidev (Chromium)"),
+				panel(actual, "slidev2pptx (PowerPoint)"),
+				panel(path.join(paths.diff, `${name}.png`), "Slidev vs. slidev2pptx"),
+			];
 			await run("magick", [
 				"(",
-				originalFile ?? file,
-				file,
+				...panels[0],
+				...panels[1],
 				"+append",
 				")",
 				"(",
-				actual,
-				path.join(paths.diff, `${name}.png`),
+				...panels.slice(2).flat(),
 				"+append",
 				")",
+				"-background",
+				"#333333",
+				"-gravity",
+				"northwest",
 				"-append",
 				"-resize",
 				"1280x",
+				"+repage",
 				path.join(paths.sheets, `${name}.png`),
 			]);
 		}
@@ -280,4 +290,30 @@ async function step(
 	const started = performance.now();
 	await task();
 	timings[name] = Math.round((performance.now() - started) / 100) / 10;
+}
+
+/** ImageMagick arguments for one labeled, same-sized panel of a contact sheet. */
+function panel(image: string, label: string) {
+	return [
+		"(",
+		image,
+		"-resize",
+		"960x540!",
+		"-background",
+		"#333333",
+		"-fill",
+		"white",
+		"-font",
+		"/System/Library/Fonts/Supplemental/Arial.ttf",
+		"-pointsize",
+		"22",
+		"-gravity",
+		"north",
+		"-splice",
+		"0x34",
+		"-annotate",
+		"+0+5",
+		label,
+		")",
+	];
 }
