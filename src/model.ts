@@ -55,14 +55,18 @@ export interface Gradient {
 
 export interface ImageItem extends ItemBase {
 	alt: string;
-	/** The visible frame. */
+	/** The visible frame, before any flip and rotation. */
 	box: Box;
-	/** Where the whole image is drawn, when the frame shows only part of it (object-fit: cover, background images). */
+	/** Where the whole image is drawn, when the frame shows only part of it (object-fit: cover, background images), relative to the frame before any flip and rotation. */
 	crop?: Box;
 	/** The image file. */
 	file: string;
+	/** Whether it's mirrored left to right, before its rotation. */
+	flip?: boolean;
 	kind: "image";
 	radius: number;
+	/** Degrees clockwise about its center. */
+	rotation?: number;
 	shadow?: Shadow;
 	src: string;
 	/** 0-100 */
@@ -234,6 +238,8 @@ interface BoxItem extends ItemBase {
 	fill?: Fill;
 	/** A link the box carries as a transparent hotspot over its text, as PowerPoint underlines any linked text. */
 	href?: string;
+	/** Whether it's mirrored left to right, before its rotation, which mirrors its fill. */
+	flip?: boolean;
 	kind: "box";
 	radius: number;
 	rotation: number;

@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { Box } from "./model.ts";
+
 import { createAssets } from "./assets.ts";
 import { createCascade } from "./cascade.ts";
 import { extractState } from "./extract.ts";
@@ -13,6 +15,14 @@ import { createLayout } from "./layout.ts";
 
 const canvas = { height: 300, width: 400 };
 const fixture = path.join(import.meta.dirname, "fixture");
+
+const rounded = (box: Box | undefined) =>
+	box && {
+		height: Math.round(box.height),
+		width: Math.round(box.width),
+		x: Math.round(box.x),
+		y: Math.round(box.y),
+	};
 const baseSheet = `p, pre, li, h1, div, td { font-family: "Fixture Sans"; margin: 0 }`;
 const fontOptions: ResolvedFontOptions = {
 	italic: false,
@@ -933,6 +943,49 @@ describe(extractState, () => {
 				kind: "image",
 				radius: 6,
 			}),
+		]);
+	});
+
+	it("draws a flipped box's left border on its right", async () => {
+		const { items } = await extract(
+			`<div style="width: 40px; height: 20px; border-left: 4px solid red; transform: scaleX(-1)"></div>`,
+		);
+
+		expect(items).toEqual([
+			expect.objectContaining({
+				box: { height: 20, width: 4, x: 36, y: 0 },
+				key: expect.stringContaining("#border-left"),
+			}),
+		]);
+	});
+
+	it("crops a flipped image in its own frame when a flipped ancestor's overflow clips it", async () => {
+		const { items } = await extract(
+			`<div style="position: relative; width: 40px; height: 20px; overflow: hidden; transform: scaleX(-1)"><img src="/photo.png" style="position: absolute; left: -20px; top: 0; width: 60px; height: 40px"></div>`,
+		);
+
+		expect(items).toEqual([
+			expect.objectContaining({
+				box: { height: 20, width: 40, x: 0, y: 0 },
+				crop: { height: 40, width: 60, x: -20, y: 0 },
+				flip: true,
+				kind: "image",
+			}),
+		]);
+	});
+
+	it("crops a rotated image in its own frame when a rotated ancestor's overflow clips it", async () => {
+		const { items } = await extract(
+			`<div style="position: relative; width: 40px; height: 40px; overflow: hidden; transform: rotate(90deg)"><img src="/photo.png" style="position: absolute; left: 0; top: 0; width: 40px; height: 80px"></div>`,
+		);
+		const [image] = items;
+
+		expect(image).toMatchObject({ kind: "image", rotation: 90 });
+		expect(
+			image.kind === "image" && [image.box, image.crop].map(rounded),
+		).toEqual([
+			{ height: 40, width: 40, x: 0, y: 0 },
+			{ height: 80, width: 40, x: 0, y: 0 },
 		]);
 	});
 

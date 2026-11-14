@@ -6,7 +6,10 @@ import {
 	geometryOf,
 	insetBox,
 	intersect,
+	intoFrame,
+	outOfFrame,
 	positionIn,
+	sameRotation,
 } from "./geometry.ts";
 
 describe(edgeBox, () => {
@@ -50,6 +53,7 @@ describe(geometryOf, () => {
 			geometryOf({ height: 10, matrix: [2, 0, 0, 2], width: 20, x: 5, y: 6 }),
 		).toEqual({
 			box: { height: 20, width: 40, x: 5, y: 6 },
+			flip: false,
 			rotation: 0,
 			scale: 2,
 		});
@@ -60,9 +64,59 @@ describe(geometryOf, () => {
 			geometryOf({ height: 10, matrix: [0, 1, -1, 0], width: 20, x: 10, y: 0 }),
 		).toEqual({
 			box: { height: 10, width: 20, x: -5, y: 5 },
+			flip: false,
 			rotation: 90,
 			scale: 1,
 		});
+	});
+
+	it("flips the box in place when its transform mirrors it", () => {
+		expect(
+			geometryOf({ height: 10, matrix: [-1, 0, 0, 1], width: 20, x: 20, y: 0 }),
+		).toEqual({
+			box: { height: 10, width: 20, x: 0, y: 0 },
+			flip: true,
+			rotation: 0,
+			scale: 1,
+		});
+	});
+
+	it("flips, then rotates, the box when its transform mirrors and rotates it", () => {
+		expect(
+			geometryOf({ height: 10, matrix: [0, 1, 1, 0], width: 20, x: 0, y: 0 }),
+		).toMatchObject({ flip: true, rotation: -90 });
+	});
+});
+
+describe(outOfFrame, () => {
+	it("flips, then rotates, a point about the frame's center", () => {
+		const point = outOfFrame(
+			{ center: { x: 10, y: 10 }, flip: true, rotation: 90 },
+			{ x: 11, y: 10 },
+		);
+
+		expect(point.x).toBeCloseTo(10);
+		expect(point.y).toBeCloseTo(9);
+	});
+});
+
+describe(intoFrame, () => {
+	it("undoes outOfFrame when the frame flips and rotates", () => {
+		const frame = { center: { x: 3, y: 4 }, flip: true, rotation: 30 };
+		const point = intoFrame(frame, outOfFrame(frame, { x: 7, y: -2 }));
+
+		expect(point.x).toBeCloseTo(7);
+		expect(point.y).toBeCloseTo(-2);
+	});
+});
+
+describe(sameRotation, () => {
+	it.each([
+		[90, -270, true],
+		[0, 360, true],
+		[10, 11, false],
+	])("compares %s and %s", (first, second, expected) => {
+		expect(sameRotation(first, second)).toBe(expected);
 	});
 });
 

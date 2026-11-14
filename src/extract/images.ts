@@ -10,10 +10,14 @@ import { ID } from "../layout.ts";
 import { boxShadowOf, scaledShadow } from "./boxes.ts";
 import { pathOf } from "./context.ts";
 import {
+	centeredAt,
+	centerOf,
+	clipBox,
 	fitSize,
 	geometryOf,
 	insetBox,
 	intersect,
+	outOfFrame,
 	positionIn,
 	sameBox,
 } from "./geometry.ts";
@@ -37,7 +41,7 @@ export function imageItem(
 	context: ExtractContext,
 	image: Element,
 	opacity: number,
-	{ box: border, scale }: Geometry,
+	{ box: border, flip, rotation, scale }: Geometry,
 ) {
 	const src = image.getAttribute("src");
 	if (!src) {
@@ -62,18 +66,39 @@ export function imageItem(
 				(length, free) => context.resolve(image, length, free),
 			)
 		: box;
-	const content = intersect(box, drawn);
+	// PowerPoint crops a picture before flipping and turning it, so a transformed one is cropped in its own frame, by the clips turned with it.
+	const frame =
+		rotation || flip ? { center: centerOf(box), flip, rotation } : undefined;
+	const clip = frame && context.clipOf(image, false, frame);
+	const content = clip
+		? clipBox(intersect(box, drawn), clip)
+		: intersect(box, drawn);
+	if (frame && (content.width <= 0 || content.height <= 0)) {
+		return;
+	}
+
+	const placed = frame
+		? centeredAt(content, outOfFrame(frame, centerOf(content)))
+		: content;
 	const radius = context.radiusOf(image) * scale;
 	const shadow = boxShadowOf(context, image, opacity);
 	context.push(image, {
 		alt: image.getAttribute("alt") ?? "",
-		box: content,
-		crop: sameBox(content, drawn) ? undefined : drawn,
+		box: placed,
+		crop: sameBox(content, drawn)
+			? undefined
+			: {
+					...drawn,
+					x: placed.x + drawn.x - content.x,
+					y: placed.y + drawn.y - content.y,
+				},
 		file,
+		flip: flip || undefined,
 		key: `${pathOf(image)}#img:${src}`,
 		kind: "image",
 		label: src.startsWith("data:") ? context.labelOf(image) : fileNameOf(src),
 		radius,
+		rotation: rotation || undefined,
 		shadow: shadow && scaledShadow(shadow, scale),
 		src,
 		transparency: transparencyOf(1, opacity),

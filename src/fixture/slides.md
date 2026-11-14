@@ -74,6 +74,7 @@ transition: none
 
 <img class="fit" src="/photo.png" alt="Cropped photo" />
 <img src="/shape.svg" alt="SVG shape" width="120" height="80" />
+<div class="flipped-crop"><img src="/photo.png" alt="Flipped photo" /></div>
 
 ---
 

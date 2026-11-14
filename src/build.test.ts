@@ -496,6 +496,12 @@ Error on slide 21, click 1: Couldn't render the click: It failed on a click.
 		);
 	});
 
+	it("crops a flipped picture before flipping it, as PowerPoint does", async () => {
+		expect(await slide(5)).toMatch(
+			/<p:pic>(?:(?!<\/p:pic>).)*descr="Flipped photo"(?:(?!<\/p:pic>).)*<a:srcRect l="33333" r="0" t="0" b="33333"\/>(?:(?!<\/p:pic>).)*<a:xfrm[^>]*flipH="1"/s,
+		);
+	});
+
 	it("converts images to PNG when PowerPoint can't show their format", () => {
 		expect(zip.file(/^ppt\/media\/.*\.svg$/)).toEqual([]);
 	});

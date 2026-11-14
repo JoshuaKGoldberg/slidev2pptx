@@ -153,6 +153,7 @@ export function inlinePills(
 						x: origin.x + left * scale,
 						y: origin.y + top * scale,
 					},
+					flip: false,
 					key: `${pathOf(child)}:${String(Math.round(line.left))}`,
 					label,
 					rotation: 0,

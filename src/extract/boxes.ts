@@ -66,11 +66,19 @@ export function availableSpanOf(context: ExtractContext, element: Element) {
 	);
 }
 
+const MIRRORED: Record<Side, Side> = {
+	bottom: "bottom",
+	left: "right",
+	right: "left",
+	top: "top",
+};
+
 export function boxItems(
 	style: BoxStyle,
 	{
 		backgrounds = [],
 		box,
+		flip,
 		key,
 		label,
 		rotation,
@@ -89,7 +97,14 @@ export function boxItems(
 		width: style.border.width * scale,
 	};
 	const layered = backgrounds.length > 0;
-	const shape = { box, kind: "box", label, radius, rotation } as const;
+	const shape = {
+		box,
+		flip: flip || undefined,
+		kind: "box",
+		label,
+		radius,
+		rotation,
+	} as const;
 	const items: ItemInput[] = [];
 	if (style.fill || (border && !layered)) {
 		items.push({
@@ -114,7 +129,11 @@ export function boxItems(
 			items.push({
 				...edgeBox(
 					box,
-					{ side: edge.side, width: edge.width * scale },
+					// A flip shows the left border on the right, and the right on the left.
+					{
+						side: flip ? MIRRORED[edge.side] : edge.side,
+						width: edge.width * scale,
+					},
 					radius,
 					rotation,
 				),

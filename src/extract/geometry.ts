@@ -1,5 +1,5 @@
 import type { LaidOutBox } from "../layout.ts";
-import type { Box, Canvas, Shadow } from "../model.ts";
+import type { Box, Canvas, Point, Shadow } from "../model.ts";
 
 import { splitTopLevel } from "../css.ts";
 
@@ -13,8 +13,21 @@ export interface Clip {
 	top: number;
 }
 
+/**
+ * A transformed element's own frame: slide px as they were before it was
+ * flipped then turned about its center. PowerPoint crops pictures in theirs.
+ */
+export interface Frame {
+	center: Point;
+	flip: boolean;
+	/** Degrees */
+	rotation: number;
+}
+
 export interface Geometry {
 	box: Box;
+	/** Whether the node is mirrored left to right before its rotation, as PowerPoint's flipH is (a top-to-bottom mirror is one with a half turn). */
+	flip: boolean;
 	rotation: number;
 	scale: number;
 }
@@ -97,16 +110,20 @@ export function fitSize(fit: "contain" | "cover", area: Canvas, ratio: number) {
 }
 
 /** The unrotated box, rotation (degrees), and scale of a node from takumi's absolute transform. */
-export function geometryOf(laidOut: LaidOutBox) {
+export function geometryOf(laidOut: LaidOutBox): Geometry {
 	const [a, b, c, d] = laidOut.matrix;
-	const rotation = (Math.atan2(b, a) * 180) / Math.PI;
+	// A transform that mirrors (with a negative determinant), like scaleX(-1), is a flip then a rotation.
+	const flip = a * d - b * c < 0;
+	const turned = (Math.atan2(flip ? -b : b, flip ? -a : a) * 180) / Math.PI;
+	const rotation = Math.abs(turned) < MIN_ROTATION ? 0 : turned;
 	const scale = scaleOf(laidOut);
 	const width = laidOut.width * scale;
 	const height = laidOut.height * Math.hypot(c, d);
-	if (Math.abs(rotation) < MIN_ROTATION) {
+	if (!rotation && !flip) {
 		return {
 			box: { height, width, x: laidOut.x, y: laidOut.y },
-			rotation: 0,
+			flip,
+			rotation,
 			scale,
 		};
 	}
@@ -117,6 +134,7 @@ export function geometryOf(laidOut: LaidOutBox) {
 		laidOut.y + b * (laidOut.width / 2) + d * (laidOut.height / 2);
 	return {
 		box: { height, width, x: centerX - width / 2, y: centerY - height / 2 },
+		flip,
 		rotation,
 		scale,
 	};
@@ -140,6 +158,45 @@ export function rotatedBounds(box: Box, rotation: number) {
 }
 
 /** The part of a box inside a clip, empty (zero-sized) when none of it is. */
+export const centerOf = (box: Box): Point => ({
+	x: box.x + box.width / 2,
+	y: box.y + box.height / 2,
+});
+
+/** A box moved to be centered on a point. */
+export const centeredAt = (box: Box, center: Point): Box => ({
+	...box,
+	x: center.x - box.width / 2,
+	y: center.y - box.height / 2,
+});
+
+/** Where a point on the slide sits in a frame: turned back, then flipped back, about its center. */
+export function intoFrame({ center, flip, rotation }: Frame, point: Point) {
+	const angle = (-rotation * Math.PI) / 180;
+	const dx = point.x - center.x;
+	const dy = point.y - center.y;
+	const x = dx * Math.cos(angle) - dy * Math.sin(angle);
+	return {
+		x: center.x + (flip ? -x : x),
+		y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle),
+	};
+}
+
+/** Where a point in a frame sits on the slide: flipped, then turned, about its center. */
+export function outOfFrame({ center, flip, rotation }: Frame, point: Point) {
+	const angle = (rotation * Math.PI) / 180;
+	const dx = flip ? center.x - point.x : point.x - center.x;
+	const dy = point.y - center.y;
+	return {
+		x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle),
+		y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle),
+	};
+}
+
+/** Whether two rotations (degrees) turn the same way, so boxes turned by each line up. */
+export const sameRotation = (first: number, second: number) =>
+	Math.abs(((((first - second) % 360) + 540) % 360) - 180) < MIN_ROTATION;
+
 export function clipBox(box: Box, clip: Clip) {
 	const x = Math.max(box.x, clip.left);
 	const y = Math.max(box.y, clip.top);

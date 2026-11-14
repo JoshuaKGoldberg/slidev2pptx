@@ -872,6 +872,18 @@ describe(writePptx, () => {
 		);
 	});
 
+	it("flips and turns a picture when it's flipped and rotated", async () => {
+		expect(await slideXml([imageItem({ flip: true, rotation: -90 })])).toMatch(
+			/<p:pic>.*<a:xfrm(?=[^>]*flipH="1")(?=[^>]*rot="16200000")/s,
+		);
+	});
+
+	it("flips a box's fill when it's flipped", async () => {
+		expect(await slideXml([boxItem({ flip: true })])).toMatch(
+			/<p:sp>.*<a:xfrm(?=[^>]*flipH="1")/s,
+		);
+	});
+
 	it("rounds a picture's corners by its shorter side", async () => {
 		expect(await slideXml([imageItem({ radius: 20 })])).toContain(
 			'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 20000"/></a:avLst></a:prstGeom>',

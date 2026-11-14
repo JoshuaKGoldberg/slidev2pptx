@@ -159,3 +159,20 @@
 .themed {
 	color: var(--slidev-theme-primary);
 }
+
+.flipped-crop {
+	position: relative;
+	width: 60px;
+	height: 40px;
+	overflow: hidden;
+	transform: scaleX(-1);
+}
+
+.flipped-crop img {
+	position: absolute;
+	left: -30px;
+	top: 0;
+	width: 90px;
+	height: 60px;
+	max-width: none;
+}

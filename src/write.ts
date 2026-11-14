@@ -648,6 +648,7 @@ function createItemWriter({
 					{
 						...position(item.box),
 						fill: fillFor(item.fill),
+						flipH: item.flip,
 						hyperlink: item.href ? { url: item.href } : undefined,
 						line: lineFor(item.border),
 						objectName: name,
@@ -690,8 +691,13 @@ function createItemWriter({
 					altText: item.decorative
 						? DECORATIVE
 						: withoutControlCharacters(item.alt),
+					flipH: item.kind === "image" ? item.flip : undefined,
 					objectName: name,
 					path: item.file,
+					rotate:
+						item.kind === "image" && item.rotation
+							? normalizeDegrees(item.rotation)
+							: undefined,
 					rounding: item.kind === "image" && isCircle(item),
 					shadow: item.kind === "image" ? shadowFor(item.shadow) : undefined,
 					transparency:

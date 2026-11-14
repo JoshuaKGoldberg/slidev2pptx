@@ -2,7 +2,7 @@ import type { Assets } from "../assets.ts";
 import type { FontBook } from "../fonts.ts";
 import type { LaidOutRuns, Layout } from "../layout.ts";
 import type { Canvas, ExtractedItem, Fill, Shadow } from "../model.ts";
-import type { Clip, Insets, Side } from "./geometry.ts";
+import type { Clip, Frame, Insets, Side } from "./geometry.ts";
 
 import {
 	INITIAL_STYLE,
@@ -14,11 +14,15 @@ import {
 import { splitTopLevel } from "../css.ts";
 import { GENERATED_ELEMENTS, ID } from "../layout.ts";
 import {
+	centeredAt,
+	centerOf,
 	clipBox,
 	geometryOf,
 	insetBox,
+	intoFrame,
 	rotatedBounds,
 	sameBox,
+	sameRotation,
 	scaleOf,
 	SIDES,
 } from "./geometry.ts";
@@ -93,7 +97,8 @@ function clipItem(item: ItemInput, clip: Clip): ItemInput | undefined {
 		return undefined;
 	}
 
-	if (rotation) {
+	// Transformed pictures are cropped in their own frame as they're extracted.
+	if (rotation || (item.kind === "image" && item.flip)) {
 		return item;
 	}
 
@@ -248,8 +253,12 @@ export function createExtractContext(
 		return product;
 	};
 
-	/** The area overflow clips an element to: its ancestors' (from its containing block up, when it's out of flow), and its own too for its content. */
-	const clipOf = (element: Element, ownContent: boolean) => {
+	/**
+	 * The area overflow clips an element to: its ancestors' (from its containing
+	 * block up, when it's out of flow), and its own too for its content. In slide
+	 * px, skipping rotated clips; or in a frame, skipping clips turned otherwise.
+	 */
+	const clipOf = (element: Element, ownContent: boolean, frame?: Frame) => {
 		let clip: Clip | undefined;
 		let escaping: "absolute" | "fixed" | undefined;
 		for (
@@ -265,7 +274,7 @@ export function createExtractContext(
 				) ||
 				(escaping === "absolute" && (style.position ?? "static") !== "static");
 			if (containing && (current !== element || ownContent)) {
-				clip = clipWithin(current, clip);
+				clip = clipWithin(current, clip, frame);
 			}
 
 			if (containing) {
@@ -280,7 +289,11 @@ export function createExtractContext(
 		return clip;
 	};
 
-	const clipWithin = (element: Element, clip: Clip | undefined) => {
+	const clipWithin = (
+		element: Element,
+		clip: Clip | undefined,
+		frame: Frame | undefined,
+	) => {
 		const style = styleOf(element);
 		const [overflowX = "visible", overflowY = overflowX] = splitTopLevel(
 			style.overflow ?? "visible",
@@ -296,11 +309,14 @@ export function createExtractContext(
 		}
 
 		const { box, rotation, scale } = geometryOf(laidOut);
-		if (rotation) {
+		if (frame ? !sameRotation(rotation, frame.rotation) : rotation) {
 			return clip;
 		}
 
-		const padding = insetBox(box, borderInsets(element), scale);
+		const unframed = insetBox(box, borderInsets(element), scale);
+		const padding = frame
+			? centeredAt(unframed, intoFrame(frame, centerOf(unframed)))
+			: unframed;
 		const bounds = clip ?? {
 			bottom: Infinity,
 			left: -Infinity,
