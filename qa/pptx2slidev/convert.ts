@@ -15,6 +15,8 @@ import type { Visibility } from "./timing.ts";
 
 import { createFontResolver } from "./fonts.ts";
 import { IDENTITY } from "./geometry.ts";
+import { inheritedLevels, loadInheritance } from "./inheritance.ts";
+import { withoutEmptyTables } from "./sanitize.ts";
 import { convertShape } from "./shapes.ts";
 import { readTiming } from "./timing.ts";
 import { convertTransition } from "./transitions.ts";
@@ -74,6 +76,12 @@ export async function convertDeck(input: string, output: string) {
 		const xml = (await zip.file(slidePath)?.async("string")) ?? "";
 		const slide = parseXml(xml).documentElement;
 		const rels = await relationships(zip, slidePath);
+		const sources = await loadInheritance(
+			zip,
+			slidePath,
+			presentation.documentElement,
+			(part) => relationships(zip, part),
+		);
 		const timing = readTiming(slide);
 		losses.push(
 			...timing.dropped.map((effect) => `Dropped animation: ${effect}`),
@@ -123,6 +131,8 @@ export async function convertDeck(input: string, output: string) {
 			},
 			defs,
 			fonts,
+			inherited: (body: Element | undefined, level: number) =>
+				inheritedLevels(sources, body, level),
 			lose: (loss: string) => losses.push(loss),
 			raw,
 			resolveLink: (id: string) => rels.get(id),
@@ -283,7 +293,10 @@ async function styleSheet(
 		if (!name) {
 			name = `${String(files.size)}-${path.basename(face.file).replaceAll(/[^\w.-]/g, "_")}`;
 			files.set(face.file, name);
-			await fs.copyFile(face.file, path.join(output, "fonts", name));
+			await fs.writeFile(
+				path.join(output, "fonts", name),
+				withoutEmptyTables(await fs.readFile(face.file)),
+			);
 		}
 
 		rules.push(
@@ -316,6 +329,12 @@ async function styleSheet(
 
 .pptx-crop {
 	overflow: hidden;
+}
+
+/* UnoCSS's preflight shrinks images to their container, which would undo crops. */
+.pptx img {
+	max-width: none;
+	max-height: none;
 }
 
 .pptx-text {

@@ -74,7 +74,29 @@ await step("convert", paths.entry, async () => {
 });
 
 await step("slidev", paths.slidevPng, async () => {
-	const { errors } = await renderWithSlidev(paths.entry, paths.slidevPng);
+	// PowerPoint exports an animated GIF's first frame, while Chromium shows whichever frame it's on,
+	// so Slidev renders a copy of the deck whose GIFs hold only their first frame.
+	const deck = path.dirname(paths.entry);
+	const copy = path.join(directory, "slidev-render");
+	await fs.rm(copy, { force: true, recursive: true });
+	await fs.cp(deck, copy, {
+		filter: (source) => !source.includes(`${path.sep}node_modules`),
+		recursive: true,
+	});
+	const media = path.join(copy, "public/media");
+	for (const file of await fs.readdir(media).catch(() => [])) {
+		if (file.toLowerCase().endsWith(".gif")) {
+			await run("magick", [
+				`${path.join(media, file)}[0]`,
+				`PNG:${path.join(media, file)}`,
+			]);
+		}
+	}
+
+	const { errors } = await renderWithSlidev(
+		path.join(copy, path.basename(paths.entry)),
+		paths.slidevPng,
+	);
 	await fs.writeFile(
 		paths.slidevErrors,
 		JSON.stringify(errors, null, "\t") + "\n",

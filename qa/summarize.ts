@@ -46,14 +46,14 @@ for (const deck of manifest) {
 		totals[key] += report.summary[key];
 	}
 
-	const ssims = report.states
+	const similarities = report.states
 		.flatMap((state) => (state.step2 ? [state.step2.ssim] : []))
 		.sort((a, b) => a - b);
 	const errors = report.build.clicks.problems.filter(
 		(problem) => problem.severity === "error",
 	).length;
 	rows.push(
-		`| ${deck.id} | ${String(report.counts.slidev)} | ${String(report.summary.pass)} | ${String(report.summary.review)} | ${String(report.summary.fail)} | ${String(report.summary.missing)} | ${ssims.length ? ssims[Math.floor(ssims.length / 2)].toFixed(3) : "-"} | ${ssims.length ? ssims[0].toFixed(3) : "-"} | ${String(errors)} | ${String(report.slidevErrors.length)} | ${String(report.conversion.losses)} |`,
+		`| ${deck.id} | ${String(report.counts.slidev)} | ${String(report.summary.pass)} | ${String(report.summary.review)} | ${String(report.summary.fail)} | ${String(report.summary.missing)} | ${similarities.length ? similarities[Math.floor(similarities.length / 2)].toFixed(3) : "-"} | ${similarities.length ? similarities[0].toFixed(3) : "-"} | ${String(errors)} | ${String(report.slidevErrors.length)} | ${String(report.conversion.losses)} |`,
 	);
 }
 

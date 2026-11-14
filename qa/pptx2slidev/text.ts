@@ -2,6 +2,7 @@ import type { createFontResolver } from "./fonts.ts";
 import type { Visibility } from "./timing.ts";
 
 import { escapeAttribute, escapeText, px, styleOf } from "./html.ts";
+import { bulletLevelOf, propertyChildOf, propertyOf } from "./inheritance.ts";
 import {
 	attributeOf,
 	childNamed,
@@ -13,6 +14,8 @@ export interface TextContext {
 	fonts: ReturnType<typeof createFontResolver>;
 	/** Records something the conversion couldn't keep. */
 	lose: (loss: string) => void;
+	/** Paragraph properties a text body inherits for a level, most specific first. */
+	inherited: (body: Element | undefined, level: number) => Element[];
 	/** Resolves a relationship id to its target, for hyperlinks. */
 	resolveLink: (id: string) => string | undefined;
 	/** Wraps HTML in Slidev click directives for a visibility. */
@@ -22,6 +25,13 @@ export interface TextContext {
 interface Line {
 	runs: Element[];
 	y: number;
+}
+
+interface Piece {
+	child: Element;
+	rendered: Element | undefined;
+	style: RunStyle;
+	text: string;
 }
 
 interface RunStyle {
@@ -55,25 +65,17 @@ export function convertText(
 	rendered: Element | undefined,
 	paragraphVisibility: Map<number, Visibility> | undefined,
 	fontScale: number,
+	/** Where pptx-svg's coordinates put the left edge of the text's content box, to measure inherited indents from. */
+	contentLeft: number,
 ) {
 	const paragraphs = childrenNamed(body, "a:p");
 	if (!paragraphs.some((paragraph) => textOf(paragraph).trim())) {
 		return undefined;
 	}
 
-	const lines = linesByParagraph(rendered);
-	const ratios = [...lines.values()]
-		.flatMap((paragraphLines) =>
-			paragraphLines.slice(1).map((line, index) => {
-				const size = styleOfRun(line.runs[0]).size;
-				return (line.y - paragraphLines[index].y) / size;
-			}),
-		)
-		.filter((ratio) => ratio > 0.5 && ratio < 3);
-	const lineRatio = ratios.length
-		? ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length
-		: SINGLE_LINE;
+	const renderedBullets = bulletsByParagraph(rendered, contentLeft);
 
+	const lines = linesByParagraph(rendered);
 	const blocks: string[] = [];
 	let list: undefined | { items: string[]; ordered: boolean; start: number };
 	let lastSize = 18;
@@ -91,11 +93,15 @@ export function convertText(
 
 	for (const [index, paragraph] of paragraphs.entries()) {
 		const properties = childNamed(paragraph, "a:pPr");
+		const levels = [
+			...(properties ? [properties] : []),
+			...context.inherited(body, Number(properties?.getAttribute("lvl") ?? 0)),
+		];
 		const paragraphLines = lines.get(index) ?? [];
 		const firstRendered = paragraphLines.at(0)?.runs.at(0);
 		const align =
 			ALIGNMENTS[
-				properties?.getAttribute("algn") ??
+				propertyOf(levels, "algn") ??
 					firstRendered?.parentElement?.getAttribute("data-ooxml-para-align") ??
 					"l"
 			];
@@ -105,30 +111,50 @@ export function convertText(
 
 		const previous = lines.get(index - 1)?.at(-1);
 		const first = paragraphLines.at(0);
-		const lineHeight = lineHeightOf(
-			properties,
-			size,
-			lineRatio,
-			paragraphLines,
-		);
+		const lineHeight = lineHeightOf(propertyChildOf(levels, "a:lnSpc"), size);
 		const spaceBefore =
-			spacingOf(childNamed(properties, "a:spcBef"), size) ??
+			spacingOf(propertyChildOf(levels, "a:spcBef"), size) ??
 			(previous && first
 				? Math.max(0, first.y - previous.y - lineHeight)
 				: undefined);
-		const spaceAfter = spacingOf(childNamed(properties, "a:spcAft"), size);
+		const spaceAfter = spacingOf(propertyChildOf(levels, "a:spcAft"), size);
 
-		const marginLeft = Number(properties?.getAttribute("marL") ?? 0) / EMU;
-		const indent = Number(properties?.getAttribute("indent") ?? 0) / EMU;
+		// Indents and bullets inherited from layouts and masters only show in where pptx-svg drew them.
+		const drawn = renderedBullets.get(index);
+		const declaredMargin = propertyOf(levels, "marL");
+		const declaredIndent = propertyOf(levels, "indent");
+		const marginLeft =
+			declaredMargin === undefined
+				? (drawn?.textX ?? 0)
+				: Number(declaredMargin) / EMU;
+		const indent =
+			declaredIndent === undefined
+				? drawn?.bulletX === undefined
+					? 0
+					: drawn.bulletX - drawn.textX
+				: Number(declaredIndent) / EMU;
+		// A paragraph in its first run's font keeps the browser's line boxes from growing around a different strut.
+		const paragraphFont = runs.first?.font
+			? context.fonts.resolve(runs.first.font)
+			: undefined;
 		const style = styleOf({
+			"font-family": paragraphFont ? `'${paragraphFont.family}'` : undefined,
 			"font-size": px(size),
+			"font-weight":
+				(paragraphFont?.weight ?? (runs.first?.bold ? 700 : 400)) === 400
+					? undefined
+					: (paragraphFont?.weight ?? 700),
 			"line-height": px(lineHeight),
 			"margin-bottom": spaceAfter ? px(spaceAfter) : undefined,
 			"margin-top": spaceBefore ? px(spaceBefore) : undefined,
 			"text-align": align === "left" ? undefined : align,
 		});
 		const content = runs.html || "<br>";
-		const bullet = bulletOf(properties);
+		const bullet =
+			bulletOf(bulletLevelOf(levels)) ??
+			(drawn?.character
+				? { character: drawn.character, kind: "character" as const, start: 1 }
+				: undefined);
 
 		if (bullet) {
 			const ordered = bullet.kind === "number";
@@ -140,7 +166,10 @@ export function convertText(
 			const level = Number(properties?.getAttribute("lvl") ?? 0);
 			const count = (numbering.get(level) ?? bullet.start - 1) + 1;
 			numbering.set(level, count);
+			// PowerPoint draws a marker in its first run's color unless the paragraph says otherwise,
+			// where a browser draws a ::marker in its list item's. (Its font follows the paragraph's.)
 			const itemStyle = styleOf({
+				color: srgbOf(propertyChildOf(levels, "a:buClr")) ?? runs.first?.color,
 				"list-style-type":
 					bullet.kind === "character"
 						? `'${escapeText(bullet.character).replaceAll("'", "\\'")} '`
@@ -167,6 +196,7 @@ export function convertText(
 	return blocks.join("");
 }
 
+/** Bullets pptx-svg drew in their own tspans, and where each paragraph's bullet and text start. */
 function bulletOf(properties: Element | undefined) {
 	if (!properties || childNamed(properties, "a:buNone")) {
 		return undefined;
@@ -198,6 +228,49 @@ function bulletOf(properties: Element | undefined) {
 	return undefined;
 }
 
+function bulletsByParagraph(
+	rendered: Element | undefined,
+	contentLeft: number,
+) {
+	const bullets = new Map<
+		number,
+		{ bulletX?: number; character?: string; textX: number }
+	>();
+	for (const line of rendered?.children ?? []) {
+		const index = Number(
+			line.getAttribute("data-ooxml-para-idx") ?? Number.NaN,
+		);
+		if (Number.isNaN(index)) {
+			continue;
+		}
+
+		const x = Number(line.getAttribute("x") ?? 0) - contentLeft;
+		const children = [...line.children];
+		const marker =
+			children.length &&
+			children.every((child) => !child.hasAttribute("data-ooxml-run-idx")) &&
+			line.hasAttribute("data-ooxml-bu-font")
+				? children
+						.map((child) => child.textContent)
+						.join("")
+						.trim()
+				: undefined;
+		const existing = bullets.get(index);
+		if (marker) {
+			bullets.set(index, {
+				...existing,
+				bulletX: x,
+				character: marker,
+				textX: existing?.textX ?? x,
+			});
+		} else if (!existing || existing.textX === existing.bulletX) {
+			bullets.set(index, { ...existing, textX: x });
+		}
+	}
+
+	return bullets;
+}
+
 function convertRuns(
 	context: TextContext,
 	paragraph: Element,
@@ -214,13 +287,15 @@ function convertRuns(
 		}
 	}
 
-	let html = "";
+	const pieces: (Piece | undefined)[] = [];
 	let runIndex = 0;
 	let size: number | undefined;
+	let first: RunStyle | undefined;
 	let previous: RunStyle | undefined;
 	for (const child of paragraph.children) {
 		if (child.tagName === "a:br") {
-			html += "<br>";
+			// undefined marks a line break.
+			pieces.push(undefined);
 			continue;
 		}
 
@@ -242,14 +317,44 @@ function convertRuns(
 
 		previous = style;
 		size ??= style.size;
-		if (!text) {
+		first ??= style;
+		if (text) {
+			pieces.push({ child, rendered: renderedRun, style, text });
+		}
+	}
+
+	// Vue drops whitespace-only text that's an element's only child, so spaces join a neighboring run.
+	for (const [index, piece] of pieces.entries()) {
+		if (!piece || piece.text.trim()) {
 			continue;
 		}
 
-		html += renderRun(context, child, renderedRun, style, text);
+		const before = pieces[index - 1];
+		const after = pieces[index + 1];
+		if (before) {
+			before.text += piece.text;
+			pieces[index] = { ...piece, text: "" };
+		} else if (after) {
+			after.text = piece.text + after.text;
+			pieces[index] = { ...piece, text: "" };
+		}
 	}
 
-	return { html, size };
+	const html = pieces
+		.map((piece) =>
+			piece
+				? piece.text &&
+					renderRun(
+						context,
+						piece.child,
+						piece.rendered,
+						piece.style,
+						preserveSpaces(piece.text),
+					)
+				: "<br>",
+		)
+		.join("");
+	return { first, html, size };
 }
 
 /** Click directives for a paragraph that builds in: it appears on its entrance click. */
@@ -280,31 +385,15 @@ function fallbackStyle(run: Element, fontScale: number): RunStyle {
 	};
 }
 
-function lineHeightOf(
-	properties: Element | undefined,
-	size: number,
-	lineRatio: number,
-	lines: Line[],
-) {
-	const spacing = childNamed(properties, "a:lnSpc");
+/** A paragraph's line height from its line spacing: PowerPoint's single spacing is 1.2 times the font size. */
+function lineHeightOf(spacing: Element | undefined, size: number) {
 	const percent = childNamed(spacing, "a:spcPct")?.getAttribute("val");
 	if (percent) {
 		return size * SINGLE_LINE * (Number(percent) / 100_000);
 	}
 
 	const points = childNamed(spacing, "a:spcPts")?.getAttribute("val");
-	if (points) {
-		return Number(points) / 100;
-	}
-
-	const last = lines.at(-1);
-	const pitch =
-		last && lines.length > 1
-			? (last.y - lines[0].y) / (lines.length - 1)
-			: undefined;
-	return pitch && pitch >= size * 0.8 && pitch <= size * 2.5
-		? pitch
-		: size * lineRatio;
+	return points ? Number(points) / 100 : size * SINGLE_LINE;
 }
 
 /** The lines pptx-svg rendered for each paragraph index, each with its run tspans. */
@@ -361,8 +450,13 @@ function renderRun(
 		rendered?.getAttribute("data-ooxml-outline-w") ?? 0,
 	);
 	const outlineColor = rendered?.getAttribute("data-ooxml-outline-color");
+	const linkId =
+		attributeOf(rendered, "data-ooxml-hlink-rid") ??
+		childNamed(properties, "a:hlinkClick")?.getAttribute("r:id");
+	const href = linkId ? context.resolveLink(linkId) : undefined;
+	// PowerPoint underlines hyperlinks.
 	const decorations = [
-		style.underline ? "underline" : "",
+		style.underline || href ? "underline" : "",
 		style.strike ? "line-through" : "",
 	].filter(Boolean);
 
@@ -385,11 +479,15 @@ function renderRun(
 	});
 	const span = `<span style="${css}">${escapeText(text)}</span>`;
 
-	const linkId =
-		attributeOf(rendered, "data-ooxml-hlink-rid") ??
-		childNamed(properties, "a:hlinkClick")?.getAttribute("r:id");
-	const href = linkId ? context.resolveLink(linkId) : undefined;
 	return href ? `<a href="${escapeAttribute(href)}">${span}</a>` : span;
+}
+
+/** Text with its repeated spaces kept: Vue condenses runs of white space, so all but the last become no-break spaces. */
+function preserveSpaces(text: string) {
+	return text.replaceAll(
+		/ {2,}/g,
+		(spaces) => "\u00A0".repeat(spaces.length - 1) + " ",
+	);
 }
 
 function scaledSize(rendered: Element, fontScale: number) {
@@ -414,6 +512,11 @@ function spacingOf(spacing: Element | undefined, size: number) {
 
 	const percent = childNamed(spacing, "a:spcPct")?.getAttribute("val");
 	return percent ? size * SINGLE_LINE * (Number(percent) / 100_000) : undefined;
+}
+
+function srgbOf(color: Element | undefined) {
+	const value = childNamed(color, "a:srgbClr")?.getAttribute("val");
+	return value ? `#${value}` : undefined;
 }
 
 function styleOfRun(run: Element): RunStyle {

@@ -131,12 +131,21 @@ function convertAutoshape(
 		(child) => child.tagName === "text",
 	);
 	const fontScale = Number(shape.getAttribute("data-ooxml-font-scale") ?? -1);
+	const box = [...shape.children].find((child) => child.tagName === "rect");
+	// pptx-svg writes -1 for an unset inset, which is PowerPoint's default 0.1".
+	const declaredInset = Number(
+		childNamed(body, "a:bodyPr")?.getAttribute("lIns") ??
+			attributeOf(shape, "data-ooxml-l-ins") ??
+			-1,
+	);
+	const leftInset = (declaredInset < 0 ? 91_440 : declaredInset) / EMU_PER_PX;
 	const text = convertText(
 		context,
 		body,
 		rendered,
 		context.timing.paragraphs.get(id),
 		fontScale > 0 ? fontScale / 100_000 : 0,
+		Number(box?.getAttribute("x") ?? 0) + leftInset,
 	);
 	if (text) {
 		parts.push(drawText(shape, body, rendered, placement, text));
@@ -185,8 +194,14 @@ function convertPicture(
 	const box = boxOf(placement);
 	const transform =
 		[box.transform, flips].filter(Boolean).join(" ") || undefined;
-	const radius =
-		shape.getAttribute("data-ooxml-geom") === "ellipse" ? "50%" : undefined;
+	const geometry =
+		descendantNamed(childNamed(raw, "p:spPr"), "a:prstGeom")?.getAttribute(
+			"prst",
+		) ?? shape.getAttribute("data-ooxml-geom");
+	const radius = geometry === "ellipse" ? "50%" : undefined;
+	if (geometry && geometry !== "rect" && geometry !== "ellipse") {
+		context.lose(`Drew picture ${id}'s ${geometry} shape as a rectangle`);
+	}
 
 	if (!left && !top && !right && !bottom) {
 		return `<img class="pptx-shape" src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" style="${styleOf(
