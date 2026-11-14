@@ -18,14 +18,31 @@
 ## Usage
 
 ```shell
-npm i slidev2pptx
+npm i -D slidev2pptx
 ```
+
+Run it next to a Slidev deck to write a native, editable PowerPoint file:
+
+```shell
+npx slidev2pptx slides.md --output talk.pptx
+```
+
+Text, lists, shapes, and pictures become native PowerPoint objects, and `v-click`s become click animations.
+Anything that can't be exported as it looks in Slidev is reported as a warning or error.
+Run `npx slidev2pptx --help` for more options, such as building a range of slides or one slide per click.
+
+It also exports a `buildPptx` function:
 
 ```ts
-import { greet } from "slidev2pptx";
+import { buildPptx } from "slidev2pptx";
 
-greet("Hello, world! 💖");
+const { output, problems } = await buildPptx({
+	entry: "slides.md",
+	output: "talk.pptx",
+});
 ```
+
+slidev2pptx renders slides with Slidev's own client internals, so it supports one Slidev major version at a time: currently `@slidev/cli@^53.1.0`.
 
 ## Development
 

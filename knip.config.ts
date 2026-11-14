@@ -1,8 +1,10 @@
 import type { KnipConfig } from "knip";
 
 export default {
-	entry: ["src/**/*.test.*"],
+	entry: ["src/ssr/*", "src/**/*.test.*"],
+	ignore: ["src/fixture/**"],
 	ignoreExportsUsedInFile: { interface: true, type: true },
-	project: ["src/**/*.ts"],
+	ignoreUnresolved: [/^#slidev\//],
+	project: ["src/**/*.{ts,vue}"],
 	treatConfigHintsAsErrors: true,
 } satisfies KnipConfig;

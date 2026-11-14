@@ -1,0 +1,435 @@
+import type { SlidevConfig } from "@slidev/types";
+
+import { parseRangeString } from "@slidev/parser/core";
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import type { Assets } from "./assets.ts";
+import type { FontBook } from "./fonts.ts";
+import type { Css, Prepared } from "./layout.ts";
+import type { Canvas, Deck, ImageItem, Item, Slide } from "./model.ts";
+import type { RenderedSlide } from "./render.ts";
+import type {
+	BuildPptxOptions,
+	BuildPptxProblem,
+	BuildPptxResult,
+} from "./types.ts";
+
+import { createAssets, isNativeImage } from "./assets.ts";
+import { createCascade } from "./cascade.ts";
+import { BuildPptxError } from "./error.ts";
+import { extractState } from "./extract.ts";
+import { createFontBook } from "./fonts.ts";
+import { createLayout } from "./layout.ts";
+import {
+	createSlideRenderer,
+	resolveDeck,
+	staticGlobalBottomLayers,
+} from "./render.ts";
+import { transitionInto } from "./transitions.ts";
+import { writePptx } from "./write.ts";
+
+type Layout = ReturnType<typeof createLayout>;
+
+interface PreparedSlide {
+	css: Css;
+	number: number;
+	rendered: RenderedSlide;
+	states: Prepared[];
+}
+
+type Report = (problem: BuildPptxProblem) => void;
+
+/**
+ * Builds a native, editable PowerPoint file from a Slidev deck.
+ * @example
+ * ```ts
+ * const { problems } = await buildPptx({
+ * 	entry: "slides.md",
+ * 	output: "talk.pptx",
+ * });
+ * ```
+ */
+export async function buildPptx({
+	work,
+	...options
+}: BuildPptxOptions): Promise<BuildPptxResult> {
+	if (work) {
+		return build(options, path.resolve(work));
+	}
+
+	const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "slidev2pptx-"));
+	try {
+		return await build(options, temporary);
+	} finally {
+		await fs.rm(temporary, { force: true, recursive: true });
+	}
+}
+
+async function build(
+	{
+		dark,
+		entry = "slides.md",
+		output,
+		range,
+		withClicks = false,
+	}: Omit<BuildPptxOptions, "work">,
+	work: string,
+) {
+	const entryFile = path.resolve(entry);
+	if (!existsSync(entryFile)) {
+		throw new BuildPptxError(`The entry ${entryFile} doesn't exist.`);
+	}
+
+	const deck = await resolveDeck(entryFile);
+	const { config, slides: deckSlides } = deck.data;
+	const numbers = slideNumbersOf(range, deckSlides.length);
+	const colorScheme = colorSchemeOf(dark, config.colorSchema);
+	config.colorSchema = colorScheme;
+	const defaultName = `${path.basename(entry, ".md")}-export`;
+	const outputFile = path.resolve(
+		// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Like Slidev, an empty name means none.
+		pptxFileName(output || config.exportFilename || defaultName),
+	);
+	await fs.mkdir(path.join(work, "rasters"), { recursive: true });
+	const renderer = await createSlideRenderer(deck);
+	try {
+		const problems: BuildPptxProblem[] = [];
+		const report: Report = (problem) => {
+			if (
+				!problems.some(
+					(existing) =>
+						existing.slide === problem.slide &&
+						existing.click === problem.click &&
+						existing.message === problem.message,
+				)
+			) {
+				problems.push(problem);
+			}
+		};
+
+		const canvas: Canvas = {
+			height: Math.ceil(config.canvasWidth / config.aspectRatio),
+			width: config.canvasWidth,
+		};
+		const assets = createAssets({
+			publicDir: renderer.publicDir,
+			root: renderer.root,
+			work,
+		});
+
+		const rendered = await eachSlide(
+			numbers.map((number) => ({ number })),
+			report,
+			async ({ number }) => {
+				const slide = await renderer.renderSlide(number);
+				for (const problem of slide.problems) {
+					report({ ...problem, slide: number });
+				}
+
+				return { rendered: slide };
+			},
+		);
+
+		renderer.problems.forEach(report);
+		const globalCss = await renderer.globalCss();
+		const styled = await eachSlide(rendered, report, async ({ number }) => ({
+			css: cssOf(
+				[...globalCss, ...(await renderer.slideCss(number))],
+				colorScheme,
+				canvas,
+			),
+		}));
+
+		const fonts = createFontBook({
+			assets,
+			fonts: config.fonts,
+			sheets: [...new Set(styled.flatMap(({ css }) => css.sheets))],
+		});
+		const layout = createLayout({ assets, canvas, colorScheme });
+		const staticLayers = staticGlobalBottomLayers(
+			styled.map(({ rendered }) => rendered.globalBottom),
+		);
+
+		const prepared: PreparedSlide[] = styled.map((slide) => ({
+			...slide,
+			states: slide.rendered.states.map((html) =>
+				layout.prepare(slide.number, html, slide.css, {
+					globalBottom: slide.rendered.globalBottom,
+					globalTop: slide.rendered.globalTop,
+					staticLayers,
+					zoom: slide.rendered.zoom,
+				}),
+			),
+		}));
+		await layout.registerFonts(
+			await fonts.load(
+				new Set(
+					prepared.flatMap(({ states }) =>
+						states.flatMap((state) => [...state.fontStacks]),
+					),
+				),
+			),
+		);
+
+		const first = styled.at(0);
+		const background = await writeBackground(
+			layout,
+			first?.css ?? cssOf(globalCss, colorScheme, canvas),
+			{ globalBottom: first?.rendered.globalBottom ?? "", staticLayers },
+			work,
+		);
+		const extract = createStateExtractor({
+			assets,
+			backdrop: background.color,
+			canvas,
+			fonts,
+			layout,
+			report,
+			work,
+		});
+		const extracted = new Map<number, Slide["states"]>();
+		for (const slide of prepared) {
+			const states = [];
+			for (const [index, state] of slide.states.entries()) {
+				const clicks = slide.rendered.clicksStart + index;
+				states.push({
+					clicks,
+					items: await extract(slide, clicks, state),
+				});
+			}
+
+			extracted.set(slide.number, states);
+		}
+
+		const deckModel: Deck = {
+			aspectRatio: config.aspectRatio,
+			author: config.author,
+			background,
+			canvas,
+			slides: numbers.map((number) => ({
+				notes: (deckSlides[number - 1].note ?? "").trim(),
+				number,
+				states: extracted.get(number) ?? [{ clicks: 0, items: [] }],
+				transition: transitionInto(number, deckSlides, config),
+			})),
+			title: config.title,
+		};
+		await fs.writeFile(
+			path.join(work, "model.json"),
+			JSON.stringify(deckModel),
+		);
+
+		const written = await writePptx({
+			deck: deckModel,
+			fonts,
+			output: outputFile,
+			withClicks,
+		});
+		for (const family of await fonts.missingFamilies()) {
+			report({
+				message: `Couldn't find the font ${family}, so its text uses a fallback font.`,
+				severity: "warning",
+			});
+		}
+
+		written.problems.forEach(report);
+		return {
+			output: outputFile,
+			problems: problems.toSorted(
+				(first, second) =>
+					(first.slide ?? 0) - (second.slide ?? 0) ||
+					(first.click ?? 0) - (second.click ?? 0),
+			),
+			slides: written.slides,
+		};
+	} finally {
+		await renderer.close();
+	}
+}
+
+function colorSchemeOf(
+	dark: boolean | undefined,
+	colorSchema: SlidevConfig["colorSchema"],
+) {
+	const scheme = (dark ?? colorSchema === "dark") ? "dark" : "light";
+	if (
+		(colorSchema === "dark" || colorSchema === "light") &&
+		scheme !== colorSchema
+	) {
+		throw new BuildPptxError(
+			`The deck's colorSchema is "${colorSchema}", so it can't export in ${scheme} mode.`,
+		);
+	}
+
+	return scheme;
+}
+
+function createStateExtractor({
+	assets,
+	backdrop,
+	canvas,
+	fonts,
+	layout,
+	report,
+	work,
+}: {
+	assets: Assets;
+	backdrop: string;
+	canvas: Canvas;
+	fonts: FontBook;
+	layout: Layout;
+	report: Report;
+	work: string;
+}) {
+	const viewable = new Map<string, Promise<string | undefined>>();
+	const viewableFile = (image: ImageItem) => {
+		let file = viewable.get(image.src);
+		if (!file) {
+			file = (async () => {
+				if (isNativeImage(await fs.readFile(image.file))) {
+					return image.file;
+				}
+
+				const png = await layout.toPng(image.src);
+				return png && writePng(work, png);
+			})();
+			viewable.set(image.src, file);
+		}
+
+		return file;
+	};
+
+	async function extract(slide: PreparedSlide, click: number, state: Prepared) {
+		const laidOut = await layout.layoutState(state, slide.css);
+		for (const { children, element, measured } of laidOut.mismatches) {
+			report({
+				click,
+				message: `<${element.tagName.toLowerCase()}> has ${String(children)} children but takumi measured ${String(measured)}: ${element.textContent.trim().slice(0, 60)}`,
+				severity: "warning",
+				slide: slide.number,
+			});
+		}
+
+		const extracted = extractState(laidOut, {
+			assets,
+			backdrop,
+			canvas,
+			fonts,
+		});
+		for (const message of extracted.problems) {
+			report({ message, severity: "error", slide: slide.number });
+		}
+
+		const items: Item[] = [];
+		for (const item of extracted.items) {
+			if (item.kind === "raster") {
+				const { selector, ...raster } = item;
+				const png = await layout.rasterize(state, slide.css, item);
+				if (png) {
+					items.push({ ...raster, file: await writePng(work, png) });
+				} else {
+					report({
+						click,
+						message: `Couldn't rasterize ${selector}.`,
+						severity: "error",
+						slide: slide.number,
+					});
+				}
+			} else if (item.kind === "image") {
+				const file = await viewableFile(item);
+				if (file) {
+					items.push({ ...item, file });
+				} else {
+					report({
+						message: `Couldn't convert ${item.src} to PNG.`,
+						severity: "error",
+						slide: slide.number,
+					});
+				}
+			} else {
+				items.push(item);
+			}
+		}
+
+		return items;
+	}
+
+	return extract;
+}
+
+function cssOf(
+	sheets: string[],
+	colorScheme: "dark" | "light",
+	viewport: Canvas,
+) {
+	return { rules: createCascade(sheets, { colorScheme, viewport }), sheets };
+}
+
+async function eachSlide<
+	Built extends { number: number },
+	Stage extends object,
+>(
+	slides: Built[],
+	report: Report,
+	run: (slide: Built) => Promise<Stage> | Stage,
+) {
+	const succeeded: (Built & Stage)[] = [];
+	for (const slide of slides) {
+		let stage: Stage;
+		try {
+			stage = await run(slide);
+		} catch (error) {
+			report({
+				message: `Couldn't build the slide: ${error instanceof Error ? error.message : String(error)}`,
+				severity: "error",
+				slide: slide.number,
+			});
+			continue;
+		}
+
+		succeeded.push({ ...slide, ...stage });
+	}
+
+	return succeeded;
+}
+
+function pptxFileName(output: string) {
+	return output.endsWith(".pptx") ? output : `${output}.pptx`;
+}
+
+function slideNumbersOf(range: string | undefined, count: number) {
+	const numbers = parseRangeString(count, range);
+	if (
+		!numbers.length ||
+		numbers.some((number) => !Number.isInteger(number) || number < 1)
+	) {
+		throw new BuildPptxError(
+			`Range "${range ?? "all"}" must select slides from 1 to ${String(count)}.`,
+		);
+	}
+
+	return numbers;
+}
+
+async function writeBackground(
+	layout: Layout,
+	css: Css,
+	layers: { globalBottom: string; staticLayers: number[] },
+	work: string,
+) {
+	const png = await layout.renderBackground(css, layers);
+	const file = path.join(work, "background.png");
+	await fs.writeFile(file, png);
+	return { color: await layout.averageColor(png), file };
+}
+
+async function writePng(work: string, png: Buffer) {
+	const hash = createHash("sha1").update(png).digest("hex").slice(0, 12);
+	const file = path.join(work, "rasters", `${hash}.png`);
+	await fs.writeFile(file, png);
+	return file;
+}
