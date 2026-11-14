@@ -10,7 +10,7 @@ import type { Assets } from "./assets.ts";
 import type { CascadeRule, ComputedStyle, ComputedStyles } from "./cascade.ts";
 import type { Box, Canvas } from "./model.ts";
 
-import { cssUrls, imageSize } from "./assets.ts";
+import { cssUrls, imageFormat, imageSize } from "./assets.ts";
 import {
 	computeStyles,
 	hasMarker,
@@ -166,6 +166,30 @@ export function createLayout({
 }) {
 	const renderer = new Renderer();
 	const supported = new Map<string, Promise<boolean>>();
+	const stills = new Map<string, Promise<Buffer | undefined>>();
+
+	/**
+	 * An image's data as takumi should draw it: a GIF as a PNG of its first frame,
+	 * as takumi draws GIFs shrunk and smeared at device pixel ratios above 1.
+	 */
+	const stillOf = (src: string) => {
+		const cached = stills.get(src);
+		if (cached) {
+			return cached;
+		}
+
+		const still = assets.load(src).then(async (data) => {
+			const size = data && imageFormat(data) === "gif" && imageSize(data);
+			return size
+				? renderer.render(
+						image({ src: data, style: { display: "block", ...size } }),
+						{ format: "png", ...size },
+					)
+				: data;
+		});
+		stills.set(src, still);
+		return still;
+	};
 
 	const supports = (declaration: string) => {
 		const result =
@@ -272,7 +296,7 @@ export function createLayout({
 
 		const images = await Promise.all(
 			[...urls].map(async (src) => {
-				const data = await assets.load(src);
+				const data = await stillOf(src);
 				return data ? [{ data, src }] : [];
 			}),
 		);

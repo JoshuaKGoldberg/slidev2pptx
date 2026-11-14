@@ -307,6 +307,29 @@ describe(createLayout, () => {
 		expect(imageSize(png)).toEqual({ height: 160, width: 240 });
 	});
 
+	it("rasterizes a GIF whole when it renders at twice its size", async () => {
+		const prepared = layout.prepare(
+			1,
+			// A 20x10 GIF: red on its left half, blue on its right.
+			`<img id="gif" src="/halves.gif" style="display: block; width: 20px; height: 10px">`,
+			{ rules },
+			{},
+		);
+		const png =
+			(await layout.rasterize(
+				prepared,
+				{ sheets },
+				{ box: { height: 10, width: 20, x: 0, y: 0 }, selector: "#gif" },
+			)) ?? Buffer.alloc(0);
+		const color = await layout.averageColor(png);
+		const [red, blue] = [color.slice(0, 2), color.slice(4)].map((hex) =>
+			parseInt(hex, 16),
+		);
+
+		// Drawn shrunk and smeared, it'd be mostly blue.
+		expect(Math.abs(red - blue)).toBeLessThan(8);
+	});
+
 	it("averages a PNG's color", async () => {
 		const png = (await layout.toPng(red)) ?? Buffer.alloc(0);
 
