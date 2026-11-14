@@ -368,6 +368,11 @@ function withVisibility(html: string, visibility: undefined | Visibility) {
 		return html;
 	}
 
+	// An exit as the slide starts means the shape never shows.
+	if (visibility.exit === 0) {
+		return "";
+	}
+
 	let wrapped = html;
 	if (visibility.exit !== undefined) {
 		wrapped = `<div v-click.hide="${String(visibility.exit)}" class="pptx-group">${wrapped}</div>`;

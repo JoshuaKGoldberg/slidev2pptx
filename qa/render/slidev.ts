@@ -15,19 +15,25 @@ const SLIDEV = path.join(
  * 001-01.png for slide 1 before any clicks. Hidden slides aren't exported.
  */
 export async function renderWithSlidev(entry: string, directory: string) {
-	// Concurrent exports can catch Vite re-optimizing dependencies and export nothing, so retry those.
-	for (let attempt = 1; ; attempt += 1) {
-		const result = await exportOnce(entry, directory);
-		if (result.pngs.length || attempt === 3) {
-			if (!result.pngs.length) {
-				throw new Error(
-					`Slidev exported no slides from ${entry}: ${result.errors.join("\n")}`,
-				);
+	// Under load, exports can catch Vite re-optimizing dependencies (and export nothing)
+	// or time out waiting for a page to show, so retry those.
+	const failures: string[] = [];
+	for (let attempt = 1; attempt <= 3; attempt += 1) {
+		try {
+			const result = await exportOnce(entry, directory);
+			if (result.pngs.length) {
+				return result;
 			}
 
-			return result;
+			failures.push(`Exported no slides: ${result.errors.join("\n")}`);
+		} catch (error) {
+			failures.push(String(error).split("\n").slice(0, 3).join("\n"));
 		}
 	}
+
+	throw new Error(
+		`Slidev couldn't export ${entry}:\n${failures.join("\n---\n")}`,
+	);
 }
 
 async function exportOnce(entry: string, directory: string) {

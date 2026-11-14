@@ -33,19 +33,37 @@ export async function renderWithPowerPoint(pptx: string, directory: string) {
 	await fs.copyFile(pptx, input);
 
 	await withLock(async () => {
-		await run(
-			"osascript",
-			[
+		try {
+			// AppleScript gives up on a command after 2 minutes by default, which big decks' exports take longer than.
+			await run(
+				"osascript",
+				[
+					"-e",
+					`with timeout of 1800 seconds
+	tell application "Microsoft PowerPoint"
+		open POSIX file "${input}"
+		set presentationToSave to active presentation
+		save presentationToSave in POSIX file "${pdf}" as save as PDF
+		close presentationToSave saving no
+	end tell
+end timeout`,
+				],
+				{ timeout: 35 * 60_000 },
+			);
+		} catch (error) {
+			// Don't leave this deck open in PowerPoint for the next render to trip over.
+			await run("osascript", [
 				"-e",
-				`tell application "Microsoft PowerPoint"
-	open POSIX file "${input}"
-	set presentationToSave to active presentation
-	save presentationToSave in POSIX file "${pdf}" as save as PDF
-	close presentationToSave saving no
-end tell`,
-			],
-			{ timeout: 10 * 60_000 },
-		);
+				`with timeout of 30 seconds
+	tell application "Microsoft PowerPoint"
+		repeat with candidate in presentations
+			if full name of candidate contains "${name}" then close candidate saving no
+		end repeat
+	end tell
+end timeout`,
+			]).catch(() => undefined);
+			throw error;
+		}
 	});
 
 	try {
