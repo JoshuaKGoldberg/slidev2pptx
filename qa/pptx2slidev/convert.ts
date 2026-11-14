@@ -263,6 +263,7 @@ function backgroundOf(svg: Element) {
 /**
  * Escapes characters outside the BMP in presentation.xml, such as an emoji in a section name.
  * pptx-svg 0.6.8 crashes loading a deck with one, but not when it's written as a reference.
+ * @see https://github.com/t-ujiie-g/pptx-svg/issues/88
  */
 async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
 	const part = "ppt/presentation.xml";
