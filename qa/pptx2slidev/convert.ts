@@ -54,9 +54,7 @@ export async function convertDeck(input: string, output: string) {
 			),
 		),
 	);
-	await renderer.loadPptx(
-		bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-	);
+	await renderer.loadPptx(await forPptxSvg(zip, bytes));
 
 	await fs.rm(output, { force: true, recursive: true });
 	await fs.mkdir(path.join(output, "public/media"), { recursive: true });
@@ -260,6 +258,28 @@ function backgroundOf(svg: Element) {
 	);
 	const fill = rect?.getAttribute("fill");
 	return fill && !fill.startsWith("url(") ? `background-color:${fill}` : "";
+}
+
+/**
+ * Escapes characters outside the BMP in presentation.xml, such as an emoji in a section name.
+ * pptx-svg 0.6.8 crashes loading a deck with one, but not when it's written as a reference.
+ */
+async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
+	const part = "ppt/presentation.xml";
+	const xml = (await zip.file(part)?.async("string")) ?? "";
+	const escaped = xml.replaceAll(
+		/[\u{10000}-\u{10FFFF}]/gu,
+		(character) => `&#x${(character.codePointAt(0) ?? 0).toString(16)};`,
+	);
+	if (escaped === xml) {
+		return bytes.buffer.slice(
+			bytes.byteOffset,
+			bytes.byteOffset + bytes.byteLength,
+		);
+	}
+
+	zip.file(part, escaped);
+	return await zip.generateAsync({ type: "arraybuffer" });
 }
 
 async function relationships(zip: JSZip, part: string) {
