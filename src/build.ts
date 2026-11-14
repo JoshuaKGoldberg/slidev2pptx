@@ -205,6 +205,13 @@ async function build(
 			extracted.set(slide.number, states);
 		}
 
+		for (const { height, src, width } of layout.oversizedImages()) {
+			report({
+				message: `${src} is ${String(width)}x${String(height)}, and takumi can't draw images over 8192 pixels on a side, so it's blank wherever slidev2pptx rasterizes it. Shrink it to draw it there.`,
+				severity: "warning",
+			});
+		}
+
 		const deckModel: Deck = {
 			aspectRatio: config.aspectRatio,
 			author: config.author,

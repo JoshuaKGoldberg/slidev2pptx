@@ -50,6 +50,9 @@ const COLUMN_HEIGHT_SLACK = 1;
 
 const MAX_PNG_SIDE = 4096;
 
+/** takumi throws decoding an image longer than this many pixels on a side. */
+const MAX_DECODED_SIDE = 8192;
+
 export const ZERO_WIDTH_SPACE = "\u200B";
 
 /** The elements ::before and ::after content becomes. */
@@ -140,6 +143,13 @@ export interface Prepared extends Omit<ComputedStyles, "pseudos"> {
 	fontStacks: Set<string>;
 }
 
+/** An image too big for takumi to decode, with its natural size. */
+export interface OversizedImage {
+	height: number;
+	src: string;
+	width: number;
+}
+
 /** An element whose children takumi measured a different number of boxes for. */
 interface Mismatch {
 	/** How many boxes its children lay out as. */
@@ -167,10 +177,12 @@ export function createLayout({
 	const renderer = new Renderer();
 	const supported = new Map<string, Promise<boolean>>();
 	const stills = new Map<string, Promise<Buffer | undefined>>();
+	const oversized: OversizedImage[] = [];
 
 	/**
 	 * An image's data as takumi should draw it: a GIF as a PNG of its first frame,
-	 * as takumi draws GIFs shrunk and smeared at device pixel ratios above 1.
+	 * as takumi draws GIFs shrunk and smeared at device pixel ratios above 1,
+	 * and an image too big for takumi to decode as a blank one of the same size.
 	 */
 	const stillOf = (src: string) => {
 		const cached = stills.get(src);
@@ -179,8 +191,20 @@ export function createLayout({
 		}
 
 		const still = assets.load(src).then(async (data) => {
-			const size = data && imageFormat(data) === "gif" && imageSize(data);
-			return size
+			const format = data && imageFormat(data);
+			const size = data && imageSize(data);
+			if (!data || !size || format === "svg") {
+				return data;
+			}
+
+			if (Math.max(size.height, size.width) > MAX_DECODED_SIDE) {
+				oversized.push({ src, ...size });
+				return Buffer.from(
+					`<svg xmlns="http://www.w3.org/2000/svg" width="${String(size.width)}" height="${String(size.height)}"/>`,
+				);
+			}
+
+			return format === "gif"
 				? renderer.render(
 						image({ src: data, style: { display: "block", ...size } }),
 						{ format: "png", ...size },
@@ -560,6 +584,8 @@ export function createLayout({
 	return {
 		averageColor,
 		layoutState,
+		/** Images too big for takumi to draw, which it lays out but leaves blank. */
+		oversizedImages: () => [...oversized],
 		prepare,
 		rasterize,
 		registerFonts,
