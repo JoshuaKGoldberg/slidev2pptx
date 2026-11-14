@@ -7,6 +7,7 @@
  * ```
  */
 import JSZip from "jszip";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { PptxRenderer } from "pptx-svg";
@@ -97,10 +98,15 @@ export async function convertDeck(input: string, output: string) {
 		}
 
 		const svg = parseXml(renderer.renderSlideSvg(index)).documentElement;
-		const defs = [...svg.children]
-			.filter((child) => child.tagName === "defs")
-			.map((child) => child.outerHTML)
-			.join("");
+		const defs = new Map(
+			[...svg.children]
+				.filter((child) => child.tagName === "defs")
+				.flatMap((child) => [...child.children])
+				.flatMap((child) => {
+					const id = child.getAttribute("id");
+					return id ? [[id, child.outerHTML] as const] : [];
+				}),
+		);
 		const context = {
 			copyMedia: (relationshipId: string) => {
 				const target = rels.get(relationshipId);
@@ -208,8 +214,29 @@ export async function convertDeck(input: string, output: string) {
 		})
 		.join("\n");
 
+	// pptx-svg embeds picture fills as data URIs, which can make Markdown too big for Vite to compile.
+	const embedded = new Set<string>();
+	const external = markdown.replaceAll(
+		/data:image\/(gif|jpeg|png|svg\+xml|webp);base64,([A-Za-z0-9+/=]+)/g,
+		(_, type: string, data: string) => {
+			const hash = createHash("sha256").update(data).digest("hex").slice(0, 16);
+			const name = `/media/embedded-${hash}.${type.replace(/\+xml$/, "")}`;
+			if (!embedded.has(name)) {
+				embedded.add(name);
+				writes.push(
+					fs.writeFile(
+						path.join(output, "public", name),
+						Buffer.from(data, "base64"),
+					),
+				);
+			}
+
+			return name;
+		},
+	);
+
 	await Promise.all(writes);
-	await fs.writeFile(path.join(output, "slides.md"), markdown);
+	await fs.writeFile(path.join(output, "slides.md"), external);
 	await fs.writeFile(
 		path.join(output, "style.css"),
 		await styleSheet(fonts.faces(), output),

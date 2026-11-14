@@ -10,8 +10,8 @@ import { attributeOf, childNamed, descendantNamed } from "./xml.ts";
 export interface SlideContext extends TextContext {
 	/** Copies a media file from the .pptx into the deck, returning its public URL. */
 	copyMedia: (relationshipId: string) => string | undefined;
-	/** The slide SVG's &lt;defs>, for shapes drawn as SVG that reference gradients or markers. */
-	defs: string;
+	/** The slide SVG's definitions by id, for shapes drawn as SVG that reference gradients or markers. */
+	defs: Map<string, string>;
 	/** The slide XML's shape elements by their cNvPr id. */
 	raw: Map<string, Element>;
 	timing: SlideTiming;
@@ -346,7 +346,26 @@ function drawSvg(
 			top: px(top),
 			width: px(halfWidth * 2),
 		},
-	)}">${context.defs}${opened}${content}${"</g>".repeat(chain.length)}</svg>`;
+	)}">${definitionsFor(context.defs, content)}${opened}${content}${"</g>".repeat(chain.length)}</svg>`;
+}
+
+/** The &lt;defs> SVG markup needs: only those it references, and those they reference, as some (like a background's picture fill) are huge. */
+function definitionsFor(defs: Map<string, string>, markup: string) {
+	const used = new Map<string, string>();
+	const queue = [markup];
+	for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
+		for (const [, id] of next.matchAll(
+			/(?:url\(\s*['"]?|href=")#([^'")\s]+)/g,
+		)) {
+			const definition = defs.get(id);
+			if (definition && !used.has(id)) {
+				used.set(id, definition);
+				queue.push(definition);
+			}
+		}
+	}
+
+	return used.size ? `<defs>${[...used.values()].join("")}</defs>` : "";
 }
 
 function drawText(
