@@ -24,10 +24,14 @@ const run = promisify(execFile);
 
 const STEPS = ["convert", "slidev", "build", "render", "compare"] as const;
 
-/** Similarity thresholds: below FAIL is a failure, below REVIEW needs a look. */
+/**
+ * Thresholds on the normalized comparison, calibrated on states that look the
+ * same (about 0.4% changed, 0.991 SSIM) and that visibly differ (over 1%).
+ * They rank what reviewers look at; reviewers decide what's a real difference.
+ */
 export const THRESHOLDS = {
-	changed: { fail: 0.02, review: 0.005 },
-	ssim: { fail: 0.95, review: 0.98 },
+	changed: { fail: 0.03, review: 0.008 },
+	ssim: { fail: 0.97, review: 0.985 },
 };
 
 const { positionals, values } = parseArgs({

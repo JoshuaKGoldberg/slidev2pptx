@@ -1,10 +1,19 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
-/** Size both images are compared at: small enough to forgive anti-aliasing, big enough to see a misplaced word. */
-const COMPARE_SIZE = "960x540!";
+/**
+ * Both images are shrunk and lightly blurred before comparing, which forgives
+ * Chromium and PowerPoint anti-aliasing glyphs differently, but still catches
+ * missing, moved, or restyled content.
+ */
+const NORMALIZE = ["-resize", "480x270!", "-blur", "0x1"];
+
+const PIXELS = 480 * 270;
 
 export interface ImageComparison {
 	/** The fraction of pixels that differ by more than the fuzz, 0-1. */
@@ -19,12 +28,21 @@ export async function compareImages(
 	actual: string,
 	heatmap: string,
 ): Promise<ImageComparison> {
-	const ssim = 1 - (await metric("SSIM", expected, actual, "null:"));
-	const changed = await metric("AE", expected, actual, heatmap, [
-		"-fuzz",
-		"10%",
-	]);
-	return { changed: changed / (960 * 540), ssim };
+	const directory = await fs.mkdtemp(path.join(os.tmpdir(), "compare-"));
+	try {
+		const [a, b] = await Promise.all(
+			[expected, actual].map(async (image, index) => {
+				const normalized = path.join(directory, `${String(index)}.png`);
+				await run("magick", [image, ...NORMALIZE, normalized]);
+				return normalized;
+			}),
+		);
+		const ssim = 1 - (await metric("SSIM", a, b, "null:"));
+		const changed = await metric("AE", a, b, heatmap, ["-fuzz", "15%"]);
+		return { changed: changed / PIXELS, ssim };
+	} finally {
+		await fs.rm(directory, { force: true, recursive: true });
+	}
 }
 
 async function metric(
@@ -40,16 +58,8 @@ async function metric(
 			"-metric",
 			name,
 			...extra,
-			"(",
 			expected,
-			"-resize",
-			COMPARE_SIZE,
-			")",
-			"(",
 			actual,
-			"-resize",
-			COMPARE_SIZE,
-			")",
 			output,
 		]);
 		return parseMetric(name, stderr);

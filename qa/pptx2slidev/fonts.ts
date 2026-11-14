@@ -74,7 +74,18 @@ export function createFontResolver() {
 
 	function addFaces(family: string, files: FontFile[]) {
 		for (const file of files) {
-			faces.set(`${family}\0${file.file}`, {
+			// CSS can't pick one face out of a collection, and the system resolves collections (like Menlo) by name anyway.
+			if (/\.(?:ttc|otc)$/i.test(file.file)) {
+				continue;
+			}
+
+			// fontconfig lists a variable font once with its weight range and again per named instance: keep the range.
+			const key = `${family}\0${file.file}`;
+			if (Array.isArray(faces.get(key)?.weight)) {
+				continue;
+			}
+
+			faces.set(key, {
 				family,
 				file: file.file,
 				italic: file.italic,
