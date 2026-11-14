@@ -541,11 +541,15 @@ function createItemWriter({
 			fonts,
 		);
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
+		const drop =
+			item.kind === "text" && !rotation && paragraphs.every(isEmojiOnly)
+				? emojiDrop(fonts.metrics(firstRun.font)) * firstRun.size
+				: 0;
 		const box = {
 			height,
 			width: width + markerGap,
 			x: left - markerGap,
-			y: top,
+			y: top + drop,
 		};
 		const shadow = paragraphs
 			.flatMap(({ runs }) => runs)
@@ -871,6 +875,45 @@ function listParagraphs(
 			spaceAfter: paragraph.spaceAfter,
 		};
 	});
+}
+
+/** Characters that join emoji into one: zero-width joiners, variation selectors, and keycaps. */
+const EMOJI_JOINERS = new Set(["\u200D", "\uFE0F", "\u20E3"]);
+
+/** Whether a paragraph's text is all emoji (and white space). */
+function isEmojiOnly({ runs }: Paragraph) {
+	const characters = Array.from(runs.map(({ text }) => text).join(""));
+	return (
+		characters.some((character) =>
+			/\p{Extended_Pictographic}/u.test(character),
+		) &&
+		characters.every(
+			(character) =>
+				/[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\s]/u.test(
+					character,
+				) || EMOJI_JOINERS.has(character),
+		)
+	);
+}
+
+/** Apple Color Emoji's ascent and descent, in em. */
+const EMOJI_ASCENT = 1;
+const EMOJI_DESCENT = 0.313;
+
+/** How much higher PowerPoint (for Mac) draws an emoji than a browser does on the same baseline, in em (measured). */
+const EMOJI_GLYPH_RISE = 0.12;
+
+/**
+ * How far, in em, to lower text that's all emoji for PowerPoint to draw them
+ * where a browser does: PowerPoint draws them higher on their baseline, and
+ * lays the line out by the emoji font's metrics instead of the text's
+ * (measured within 0.04em in Arial, Courier New, Georgia, League Spartan,
+ * Times New Roman, and Verdana).
+ */
+function emojiDrop({ ascent, descent }: { ascent: number; descent: number }) {
+	return (
+		EMOJI_GLYPH_RISE + (EMOJI_ASCENT - EMOJI_DESCENT - (ascent - descent)) / 2
+	);
 }
 
 /** Where the box's top goes so PowerPoint's first baseline lands on the browser's, and how tall it is. */

@@ -303,6 +303,30 @@ describe(writePptx, () => {
 		).toContain('<a:lnSpc><a:spcPct val="125000"/></a:lnSpc>');
 	});
 
+	it.each([
+		// 0.12em, plus half the difference between Apple Color Emoji's ascent less descent (0.687) and the text's (0.6), at 24px.
+		["❌ 💖", 3.924],
+		["👩‍💻", 3.924],
+		["Text ❌", 0],
+		["#", 0],
+	])(
+		"lowers %j by %s px as PowerPoint draws emoji higher",
+		async (text, drop) => {
+			const offsetOf = async (content: string) =>
+				Number(
+					[
+						...((await slideXml([textItem([[run(content)]])])) ?? "").matchAll(
+							/<a:off x="\d+" y="(\d+)"/g,
+						),
+					].at(-1)?.[1],
+				);
+
+			expect(
+				((await offsetOf(text)) - (await offsetOf("Text"))) / 12700,
+			).toBeCloseTo(drop, 1);
+		},
+	);
+
 	it("throws when a text item has no runs", async () => {
 		await expect(slideXml([textItem([[]])])).rejects.toThrow(
 			"Text items need at least one run.",
