@@ -14,6 +14,8 @@ import { createCache, cssUrls } from "./assets.ts";
 import { declarationsOf, splitTopLevel, unquote } from "./css.ts";
 
 export interface FontBook {
+	/** How wide text is in a PowerPoint font, in em, when the font is loaded and has every character. */
+	advance(font: string, text: string): number | undefined;
 	/** Loads the fonts for text in these font-family stacks, returning those not yet loaded, in registration order. */
 	load(stacks: Iterable<string>): Promise<TakumiFont[]>;
 	/** Line metrics for a PowerPoint font, from its file when it's loaded. */
@@ -256,6 +258,25 @@ export function createFontBook({
 	};
 
 	return {
+		advance(font, text) {
+			const codes = Array.from(
+				text,
+				(character) => character.codePointAt(0) ?? 0,
+			);
+			const loaded = facesNamed(font).find(({ face, font: file }) =>
+				codes.every(
+					(code) =>
+						inUnicodeRange(face, code) && file.hasGlyphForCodePoint(code),
+				),
+			);
+			return (
+				loaded &&
+				codes.reduce(
+					(sum, code) => sum + loaded.font.glyphForCodePoint(code).advanceWidth,
+					0,
+				) / loaded.font.unitsPerEm
+			);
+		},
 		async load(stacks) {
 			await addSheetsOnce();
 

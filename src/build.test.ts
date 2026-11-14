@@ -598,6 +598,12 @@ Error on slide 21, click 1: Couldn't render the click: It failed on a click.
 		);
 	});
 
+	it("draws a marker in its item's font and size when the item starts with code", async () => {
+		expect(await slide(11)).toMatch(
+			/<a:buSzPts val="\d+"\/><a:buFont typeface="[^"]+"\/><a:buAutoNum type="arabicPeriod" startAt="1"\/>(?:(?!<\/a:p>).)*<a:t>code<\/a:t>/s,
+		);
+	});
+
 	it("renders an icon when it's inline in a heading", async () => {
 		expect(await shapeNames(12)).toContain("Rendered: icon");
 	});

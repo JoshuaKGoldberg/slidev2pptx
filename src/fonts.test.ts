@@ -226,6 +226,21 @@ describe(createFontBook, () => {
 		});
 	});
 
+	it("measures text's advance in a loaded font", async () => {
+		const { book } = await createBook();
+		expect(book.advance("League Spartan Bold", "• ")).toBeCloseTo(0.71, 2);
+	});
+
+	it("measures no advance when a font has no file", async () => {
+		const { book } = await createBook();
+		expect(book.advance("Nowhere Sans", "• ")).toBeUndefined();
+	});
+
+	it("measures no advance when a loaded font lacks a character", async () => {
+		const { book } = await createBook();
+		expect(book.advance("League Spartan Bold", "→ ")).toBeUndefined();
+	});
+
 	it("uses Menlo's metrics when a font has no file", async () => {
 		const { book } = await createBook();
 		expect(book.metrics("Nowhere Sans")).toEqual({

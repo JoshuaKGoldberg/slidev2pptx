@@ -1,4 +1,4 @@
-import type { ListParagraph } from "../model.ts";
+import type { ListParagraph, MarkerFace } from "../model.ts";
 import type { ExtractContext, TextRuns } from "./context.ts";
 
 import { hasMarker, lineHeightOf } from "../cascade.ts";
@@ -173,6 +173,7 @@ export function markedItem(
 			indent: left - box.x,
 			level: 0,
 			marker: style["list-style-type"],
+			markerFace: markerFaceOf(context, item),
 			number: ordinalsOf(list, items)[items.indexOf(item)],
 			runs,
 			visible: true,
@@ -261,6 +262,20 @@ function bulletColorOf(
 		: undefined;
 }
 
+/** The font and size a list item's marker shows in, from its ::marker's style (which inherits the item's). */
+function markerFaceOf(context: ExtractContext, item: Element): MarkerFace {
+	const style = context.markers.get(item) ?? context.styleOf(item);
+	const { font } = context.fonts.resolve(
+		style["font-family"],
+		Number(style["font-weight"]),
+		style["font-style"] === "italic",
+	);
+	return {
+		font,
+		size: parseFloat(style["font-size"]) * context.scaleAt(item),
+	};
+}
+
 const itemsOf = (list: Element) =>
 	[...list.children].filter((child) => child.localName === "li");
 
@@ -317,6 +332,7 @@ function listParagraphs(
 		const shared = {
 			level,
 			marker: style["list-style-type"],
+			markerFace: markerFaceOf(context, item),
 			number: numbers[index],
 			visible: context.opacityOf(item) >= MIN_OPACITY,
 		};

@@ -27,6 +27,9 @@ import {
 } from "./write.ts";
 
 const fonts: FontBook = {
+	// Only the font named "Measured" is loaded, with every character 0.5em wide.
+	advance: (font, text) =>
+		font === "Measured" ? Array.from(text).length * 0.5 : undefined,
 	load: () => Promise.resolve([]),
 	metrics: () => ({ ascent: 0.8, baseline: 0.75, descent: 0.2 }),
 	missingFamilies: () => Promise.resolve([]),
@@ -544,6 +547,81 @@ describe(writePptx, () => {
 		).toContain(
 			'<a:buClr><a:srgbClr val="FF0000"/></a:buClr><a:buSzPct val="100000"/><a:buChar char="&#x2192;"/>',
 		);
+	});
+
+	it("draws a numbered marker in its item's font and size when its first run's differ", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("", {
+					marker: "decimal",
+					markerFace: { font: "Body", size: 24 },
+					runs: [run("code", { font: "Mono", size: 20 }), run(" first")],
+				}),
+			]),
+		]);
+
+		expect(xml?.match(/<a:bu\w.*?(?=<\/a:pPr>)/g)).toEqual([
+			'<a:buSzPts val="2400"/><a:buFont typeface="Body"/><a:buAutoNum type="arabicPeriod" startAt="1"/>',
+		]);
+	});
+
+	it("sizes a keyword marker from its item's size when its first run's differs", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("", {
+					markerFace: { font: "Body", size: 24 },
+					runs: [run("code", { font: "Mono", size: 20 }), run(" first")],
+				}),
+			]),
+		]);
+
+		expect(xml?.match(/<a:bu\w.*?(?=<\/a:pPr>)/g)).toEqual([
+			'<a:buSzPts val="1440"/><a:buFont typeface="Arial"/><a:buChar char="&#x25CF;"/>',
+		]);
+	});
+
+	it("draws a string marker in its item's font when its first run's differs", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("", {
+					marker: '"→"',
+					markerFace: { font: "Body", size: 24 },
+					runs: [run("code", { font: "Mono", size: 24 }), run(" first")],
+				}),
+			]),
+		]);
+
+		expect(xml?.match(/<a:bu\w.*?(?=<\/a:pPr>)/g)).toEqual([
+			'<a:buSzPts val="2400"/><a:buFont typeface="Body"/><a:buChar char="&#x2192;"/>',
+		]);
+	});
+
+	it("leaves a marker in its first run's font and size when they match its item's", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("Same", {
+					marker: "decimal",
+					markerFace: { font: "Body", size: 24 },
+				}),
+			]),
+		]);
+
+		expect(xml?.match(/<a:bu\w.*?(?=<\/a:pPr>)/g)).toEqual([
+			'<a:buSzPct val="100000"/><a:buFontTx/><a:buAutoNum type="arabicPeriod" startAt="1"/>',
+		]);
+	});
+
+	it("hangs a string marker by its text's width when its font is loaded", async () => {
+		expect(
+			await slideXml([
+				listItem([
+					listParagraph("Arrow", {
+						marker: '"→ "',
+						runs: [run("Arrow", { font: "Measured" })],
+					}),
+				]),
+			]),
+		).toContain('<a:pPr algn="l" marL="304800" indent="-304800">');
 	});
 
 	it("nests a paragraph a level deeper when its list is nested", async () => {

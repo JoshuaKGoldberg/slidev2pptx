@@ -24,6 +24,8 @@ export interface SlidePatch {
 	lists: {
 		/** The markers' color as uppercase hex, when it isn't the text's. */
 		color?: string;
+		/** Each paragraph's marker's font and size (hundredths of a point), where they differ from its first run's, which PowerPoint would otherwise use. */
+		faces?: (undefined | { font: string; size: number })[];
 		/** EMU each marked paragraph hangs its marker by, so the marker sits just before its text as a browser's outside marker does. */
 		hang: number;
 		/** Each paragraph's marker, in order; undefined where it shows none. */
@@ -334,9 +336,9 @@ export function patchSlide(
 		);
 	}
 
-	for (const { color, hang, markers, name } of patch.lists) {
+	for (const { color, faces = [], hang, markers, name } of patch.lists) {
 		patched = replaceShape(patched, name, (shape) =>
-			styleMarkers(shape, markers, color, hang),
+			styleMarkers(shape, markers, faces, color, hang),
 		);
 	}
 
@@ -471,6 +473,7 @@ function replaceShape(
 function styleMarkers(
 	shape: string,
 	markers: SlidePatch["lists"][number]["markers"],
+	faces: NonNullable<SlidePatch["lists"][number]["faces"]>,
 	color: string | undefined,
 	hang: number,
 ) {
@@ -482,7 +485,15 @@ function styleMarkers(
 	const styled = shape.replace(
 		/<a:pPr\b[^>]*?(?:\/>|>.*?<\/a:pPr>)/gs,
 		(original) => {
+			const face = faces.at(index);
 			const marker = markers.at(index++);
+			const font = face
+				? `<a:buFont typeface="${escapeXml(face.font)}"/>`
+				: "<a:buFontTx/>";
+			const size = (percent: number) =>
+				face
+					? `<a:buSzPts val="${String(Math.round((face.size * percent) / 100))}"/>`
+					: `<a:buSzPct val="${String(percent * 1000)}"/>`;
 			// pptxgenjs hangs a marker by a whole level's indent, which puts it at the list's
 			// edge rather than beside an indented or nested item's text.
 			const properties = marker
@@ -495,16 +506,20 @@ function styleMarkers(
 					return patchOnce(
 						properties,
 						plainSize,
-						`${bulletColor}<a:buSzPct val="60000"/><a:buFont typeface="Arial"/>`,
+						`${bulletColor}${size(60)}<a:buFont typeface="Arial"/>`,
 					);
 				case "number":
 					return patchOnce(
 						properties,
 						`${plainSize}<a:buFont typeface="+mj-lt"/>`,
-						`${bulletColor}${plainSize}<a:buFontTx/>`,
+						`${bulletColor}${size(100)}${font}`,
 					);
 				case "string":
-					return patchOnce(properties, plainSize, bulletColor + plainSize);
+					return patchOnce(
+						properties,
+						plainSize,
+						bulletColor + size(100) + (face ? font : ""),
+					);
 				default:
 					return patchOnce(
 						properties.replace(/ indent="-\d+"/, ' indent="0"'),

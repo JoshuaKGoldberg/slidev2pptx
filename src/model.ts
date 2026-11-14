@@ -99,10 +99,19 @@ export interface ListParagraph extends Paragraph {
 	level: number;
 	/** The item's CSS list-style-type, like "disc", "decimal", or a quoted string. */
 	marker: string;
+	/** The font and px size its marker shows in: its ::marker's, which inherits the item's rather than its first run's. */
+	markerFace?: MarkerFace;
 	/** The item's ordinal, for numbered markers. */
 	number: number;
 	/** Whether the paragraph's list item shows, rather than being hidden in this click state, as before its v-click. */
 	visible: boolean;
+}
+
+/** The font and px size a list marker shows in. */
+export interface MarkerFace {
+	font: string;
+	/** px */
+	size: number;
 }
 
 export interface Paragraph {

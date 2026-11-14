@@ -14,6 +14,7 @@ import type {
 	Item,
 	ListItem,
 	ListParagraph,
+	MarkerFace,
 	Paragraph,
 	Run,
 	Shadow,
@@ -517,10 +518,7 @@ function createItemWriter({
 					? { ...item.style, lineHeight: mixedPitch }
 					: item.style;
 		const rotation = item.kind === "text" ? item.rotation : 0;
-		const markerGap =
-			item.kind === "list"
-				? markerGapOf(item, firstRunOf(item.paragraphs).size)
-				: 0;
+		const markerGap = item.kind === "list" ? markerGapOf(item, fonts) : 0;
 		const list =
 			item.kind === "list"
 				? {
@@ -596,6 +594,14 @@ function createItemWriter({
 		if (list) {
 			patch.lists.push({
 				color: list.color,
+				faces: list.paragraphs.map(({ markerFace }) =>
+					markerFace
+						? {
+								font: markerFace.font,
+								size: Math.round(points(markerFace.size) * 100),
+							}
+						: undefined,
+				),
 				hang: Math.max(1, Math.round(points(markerGap) * EMU_PER_POINT)),
 				markers: list.paragraphs.map(({ marker }) => marker),
 				name,
@@ -822,7 +828,7 @@ function listParagraphs(
 	visibleParagraphs: boolean[] | undefined,
 	markerGap: number,
 	points: Units["points"],
-): (TextParagraph & { marker?: Marker["kind"] })[] {
+): (TextParagraph & { marker?: Marker["kind"]; markerFace?: MarkerFace })[] {
 	const numbering = createNumbering();
 	return spacedListParagraphs(item, points).map((paragraph, index) => {
 		const { level, number } = paragraph;
@@ -852,6 +858,7 @@ function listParagraphs(
 						: { characterCode: marker.code, indent },
 			indentLevel: level || undefined,
 			marker: marker?.kind,
+			markerFace: marker && faceToWrite(marker, paragraph),
 			runs: visible
 				? paragraph.runs
 				: paragraph.runs.map((run) => ({ ...run, transparency: 100 })),
@@ -966,14 +973,44 @@ export function markerFor(listStyle: string): Marker | undefined {
 	return { kind: "number", style: NUMBER_STYLES[listStyle] ?? "arabicPeriod" };
 }
 
-/** Room for a list's outermost markers in their hanging indent: for its widest number and period, for a bullet, or none when they show none. */
-function markerGapOf(list: ListItem, size: number) {
+/**
+ * The font and size to write for a paragraph's marker, where they differ from
+ * its first run's, which PowerPoint would otherwise draw it in. Keyword markers
+ * are always drawn in Arial, so only their size matters.
+ */
+function faceToWrite(marker: Marker, { markerFace, runs }: ListParagraph) {
+	const first = runs.at(0);
+	return markerFace &&
+		first &&
+		((marker.kind !== "keyword" && markerFace.font !== first.font) ||
+			Math.abs(markerFace.size - first.size) > 0.01)
+		? markerFace
+		: undefined;
+}
+
+/**
+ * Room for a list's outermost markers in their hanging indent, in their font
+ * and size: for its widest number and period, for a string marker's text
+ * (browsers draw it all, though PowerPoint draws only its first character),
+ * for a bullet, or none when they show none.
+ */
+function markerGapOf(list: ListItem, fonts: FontBook) {
 	const outermost = list.paragraphs.filter(({ level }) => level === 0);
 	const first = outermost.find(
 		({ bullet, marker }) => bullet && markerFor(marker),
 	);
 	if (!first) {
 		return 0;
+	}
+
+	const firstRun = firstRunOf(list.paragraphs);
+	const { font, size } = first.markerFace ?? firstRun;
+	const text = /^["']/.test(first.marker)
+		? csstree.string.decode(first.marker)
+		: undefined;
+	const advance = text ? fonts.advance(font, text) : undefined;
+	if (advance !== undefined) {
+		return advance * size;
 	}
 
 	return markerFor(first.marker)?.kind === "number"
