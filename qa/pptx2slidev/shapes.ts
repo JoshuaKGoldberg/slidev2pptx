@@ -1,0 +1,399 @@
+import type { Matrix, Placement } from "./geometry.ts";
+import type { TextContext } from "./text.ts";
+import type { SlideTiming } from "./timing.ts";
+
+import { EMU_PER_PX, multiply, parseTransform, place } from "./geometry.ts";
+import { escapeAttribute, px, styleOf } from "./html.ts";
+import { convertText } from "./text.ts";
+import { attributeOf, childNamed, descendantNamed } from "./xml.ts";
+
+export interface SlideContext extends TextContext {
+	/** Copies a media file from the .pptx into the deck, returning its public URL. */
+	copyMedia: (relationshipId: string) => string | undefined;
+	/** The slide SVG's &lt;defs>, for shapes drawn as SVG that reference gradients or markers. */
+	defs: string;
+	/** The slide XML's shape elements by their cNvPr id. */
+	raw: Map<string, Element>;
+	timing: SlideTiming;
+}
+
+/** Geometries drawn as styled boxes, which slidev2pptx writes as native rectangles. */
+const BOX_GEOMETRIES = new Set(["rect", "roundRect"]);
+
+/** Geometries drawn as single straight lines. */
+const LINE_GEOMETRIES = new Set(["line", "straightConnector1"]);
+
+/** Converts a pptx-svg shape &lt;g> (and, for groups, its children) into absolutely positioned Slidev HTML. */
+export function convertShape(
+	context: SlideContext,
+	shape: Element,
+	matrix: Matrix,
+	chain: string[],
+): string {
+	const type = shape.getAttribute("data-ooxml-shape-type");
+	const id = shape.getAttribute("data-ooxml-nv-id") ?? "";
+	const placement = place(matrix, {
+		cx: numberOf(shape, "cx"),
+		cy: numberOf(shape, "cy"),
+		rotation: numberOf(shape, "rot") / 60_000,
+		x: numberOf(shape, "x"),
+		y: numberOf(shape, "y"),
+	});
+
+	let html: string;
+	if (type === "group") {
+		const inner = [...shape.children].find((child) => child.tagName === "g");
+		const transform = inner?.getAttribute("transform") ?? "";
+		const childMatrix = multiply(matrix, parseTransform(transform));
+		html = `<div class="pptx-group" data-shape="${escapeAttribute(id)}">${[
+			...(inner?.children ?? []),
+		]
+			.filter((child) => child.hasAttribute("data-ooxml-shape-type"))
+			.map((child) =>
+				convertShape(context, child, childMatrix, [...chain, transform]),
+			)
+			.join("")}</div>`;
+	} else if (type === "picture") {
+		html = convertPicture(context, shape, id, placement, chain);
+	} else {
+		html = convertAutoshape(context, shape, id, placement, chain);
+	}
+
+	return context.withVisibility(html, context.timing.shapes.get(id));
+}
+
+function boxOf(placement: Placement) {
+	return {
+		height: px(placement.height),
+		left: px(placement.x),
+		top: px(placement.y),
+		transform: placement.rotation
+			? `rotate(${String(placement.rotation)}deg)`
+			: undefined,
+		width: px(placement.width),
+	};
+}
+
+function convertAutoshape(
+	context: SlideContext,
+	shape: Element,
+	id: string,
+	placement: Placement,
+	chain: string[],
+) {
+	const raw = context.raw.get(id);
+	const geometry = shape.getAttribute("data-ooxml-geom") ?? "rect";
+	const drawn = [...shape.children].find((child) =>
+		["ellipse", "line", "path", "polygon", "polyline", "rect"].includes(
+			child.tagName,
+		),
+	);
+	const fill = drawn?.getAttribute("fill") ?? "none";
+	const stroke = drawn?.getAttribute("stroke") ?? "none";
+	const strokeWidth = Number(drawn?.getAttribute("stroke-width") ?? 0);
+	const effects = descendantNamed(childNamed(raw, "p:spPr"), "a:effectLst");
+	if (effects?.children.length) {
+		context.lose(
+			`Dropped ${[...effects.children].map((effect) => effect.tagName.replace("a:", "")).join(", ")} on shape ${id}`,
+		);
+	}
+
+	const parts: string[] = [];
+	const visible = fill !== "none" || (stroke !== "none" && strokeWidth > 0);
+	if (visible) {
+		const flipped =
+			!!shape.getAttribute("data-ooxml-flip-h") ||
+			!!shape.getAttribute("data-ooxml-flip-v");
+		if (
+			BOX_GEOMETRIES.has(geometry) &&
+			drawn?.tagName === "rect" &&
+			!fill.startsWith("url(") &&
+			!drawn.getAttribute("stroke-dasharray")
+		) {
+			parts.push(drawBox(drawn, placement, fill, stroke, strokeWidth));
+		} else if (
+			LINE_GEOMETRIES.has(geometry) &&
+			!drawn?.getAttribute("marker-start") &&
+			!drawn?.getAttribute("marker-end") &&
+			!flipped &&
+			stroke !== "none"
+		) {
+			parts.push(drawLine(drawn, placement, stroke, strokeWidth));
+		} else if (geometry === "ellipse" && !fill.startsWith("url(")) {
+			parts.push(drawEllipse(drawn, placement, fill, stroke, strokeWidth));
+		} else {
+			parts.push(drawSvg(context, shape, placement, chain, strokeWidth));
+		}
+	}
+
+	const body = descendantNamed(raw, "p:txBody");
+	const rendered = [...shape.children].find(
+		(child) => child.tagName === "text",
+	);
+	const fontScale = Number(shape.getAttribute("data-ooxml-font-scale") ?? -1);
+	const text = convertText(
+		context,
+		body,
+		rendered,
+		context.timing.paragraphs.get(id),
+		fontScale > 0 ? fontScale / 100_000 : 0,
+	);
+	if (text) {
+		parts.push(drawText(shape, body, rendered, placement, text));
+	}
+
+	return parts.join("");
+}
+
+function convertPicture(
+	context: SlideContext,
+	shape: Element,
+	id: string,
+	placement: Placement,
+	chain: string[],
+) {
+	const raw = context.raw.get(id);
+	const blip = descendantNamed(raw, "a:blip");
+	const svgBlip = descendantNamed(blip, "asvg:svgBlip");
+	const relationship =
+		svgBlip?.getAttribute("r:embed") ?? blip?.getAttribute("r:embed");
+	const source = relationship ? context.copyMedia(relationship) : undefined;
+	if (!source) {
+		context.lose(`Drew picture ${id} as SVG, as its image couldn't be copied`);
+		return drawSvg(context, shape, placement, chain, 0);
+	}
+
+	if (
+		descendantNamed(raw, "a:videoFile") ||
+		descendantNamed(raw, "p14:media")
+	) {
+		context.lose(`Kept only the poster image of video ${id}`);
+	}
+
+	const alt = descendantNamed(raw, "p:cNvPr")?.getAttribute("descr") ?? "";
+	const crop = descendantNamed(raw, "a:srcRect");
+	const [left, top, right, bottom] = ["l", "t", "r", "b"].map(
+		(side) => Number(crop?.getAttribute(side) ?? 0) / 100_000,
+	);
+	const alpha = descendantNamed(blip, "a:alphaModFix")?.getAttribute("amt");
+	const opacity = alpha ? Number(alpha) / 100_000 : undefined;
+	const flipH = !!shape.getAttribute("data-ooxml-flip-h");
+	const flipV = !!shape.getAttribute("data-ooxml-flip-v");
+	const flips = [flipH ? "scaleX(-1)" : "", flipV ? "scaleY(-1)" : ""]
+		.filter(Boolean)
+		.join(" ");
+	const box = boxOf(placement);
+	const transform =
+		[box.transform, flips].filter(Boolean).join(" ") || undefined;
+	const radius =
+		shape.getAttribute("data-ooxml-geom") === "ellipse" ? "50%" : undefined;
+
+	if (!left && !top && !right && !bottom) {
+		return `<img class="pptx-shape" src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" style="${styleOf(
+			{
+				...box,
+				"border-radius": radius,
+				opacity,
+				transform,
+			},
+		)}">`;
+	}
+
+	const width = placement.width / (1 - left - right);
+	const height = placement.height / (1 - top - bottom);
+	return `<div class="pptx-shape pptx-crop" style="${styleOf({
+		...box,
+		"border-radius": radius,
+		opacity,
+		transform,
+	})}"><img src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" style="${styleOf(
+		{
+			height: px(height),
+			left: px(-left * width),
+			position: "absolute",
+			top: px(-top * height),
+			width: px(width),
+		},
+	)}"></div>`;
+}
+
+function dashOf(drawn: Element | undefined) {
+	const dashes = drawn?.getAttribute("stroke-dasharray");
+	if (!dashes) {
+		return "solid";
+	}
+
+	const [first] = dashes.split(/[\s,]+/).map(Number);
+	const width = Number(drawn?.getAttribute("stroke-width") ?? 1);
+	return first <= width * 1.5 ? "dotted" : "dashed";
+}
+
+function drawBox(
+	drawn: Element,
+	placement: Placement,
+	fill: string,
+	stroke: string,
+	strokeWidth: number,
+) {
+	const hasStroke = stroke !== "none" && strokeWidth > 0;
+	// PowerPoint centers strokes on the shape's edge; CSS borders sit inside the box.
+	const grow = hasStroke ? strokeWidth / 2 : 0;
+	const radius = Number(drawn.getAttribute("rx") ?? 0);
+	return `<div class="pptx-shape" style="${styleOf({
+		...boxOf({
+			...placement,
+			height: placement.height + grow * 2,
+			width: placement.width + grow * 2,
+			x: placement.x - grow,
+			y: placement.y - grow,
+		}),
+		"background-color": fill === "none" ? undefined : fill,
+		border: hasStroke
+			? `${px(strokeWidth)} ${dashOf(drawn)} ${stroke}`
+			: undefined,
+		"border-radius": radius ? px(radius + grow) : undefined,
+		opacity: opacityOf(drawn),
+	})}"></div>`;
+}
+
+function drawEllipse(
+	drawn: Element | undefined,
+	placement: Placement,
+	fill: string,
+	stroke: string,
+	strokeWidth: number,
+) {
+	const { height, width } = placement;
+	return `<svg class="pptx-shape" viewBox="0 0 ${String(width)} ${String(height)}" style="${styleOf(
+		{
+			...boxOf(placement),
+			overflow: "visible",
+		},
+	)}"><ellipse cx="${String(width / 2)}" cy="${String(height / 2)}" rx="${String(width / 2)}" ry="${String(height / 2)}" fill="${fill}"${stroke !== "none" ? ` stroke="${stroke}" stroke-width="${String(strokeWidth)}"` : ""}${drawn?.getAttribute("fill-opacity") ? ` fill-opacity="${drawn.getAttribute("fill-opacity") ?? ""}"` : ""}/></svg>`;
+}
+
+function drawLine(
+	drawn: Element | undefined,
+	placement: Placement,
+	stroke: string,
+	strokeWidth: number,
+) {
+	// A line's frame is its bounding box: it runs corner to corner, then rotates with the frame.
+	const length = Math.hypot(placement.width, placement.height);
+	const angle =
+		(Math.atan2(placement.height, placement.width) * 180) / Math.PI +
+		placement.rotation;
+	const centerX = placement.x + placement.width / 2;
+	const centerY = placement.y + placement.height / 2;
+	return `<div class="pptx-shape" style="${styleOf({
+		"border-top": `${px(strokeWidth)} ${dashOf(drawn)} ${stroke}`,
+		height: "0px",
+		left: px(centerX - length / 2),
+		opacity: opacityOf(drawn, "stroke-opacity"),
+		top: px(centerY - strokeWidth / 2),
+		transform: angle
+			? `rotate(${String(Math.round(angle * 100) / 100)}deg)`
+			: undefined,
+		width: px(length),
+	})}"></div>`;
+}
+
+/** Draws a shape's pptx-svg rendering, minus its text, as an inline SVG around the shape. */
+function drawSvg(
+	context: SlideContext,
+	shape: Element,
+	placement: Placement,
+	chain: string[],
+	strokeWidth: number,
+) {
+	// Leave room for strokes, arrowheads, and rotation.
+	const margin = strokeWidth * 4 + 8;
+	const radius = Math.hypot(placement.width, placement.height) / 2;
+	const centerX = placement.x + placement.width / 2;
+	const centerY = placement.y + placement.height / 2;
+	const halfWidth =
+		(placement.rotation ? radius : placement.width / 2) + margin;
+	const halfHeight =
+		(placement.rotation ? radius : placement.height / 2) + margin;
+	const left = centerX - halfWidth;
+	const top = centerY - halfHeight;
+	const content = [...shape.children]
+		.filter((child) => child.tagName !== "text")
+		.map((child) => child.outerHTML)
+		.join("");
+	const opened = chain
+		.map((transform) => `<g transform="${escapeAttribute(transform)}">`)
+		.join("");
+	return `<svg class="pptx-shape" xmlns="http://www.w3.org/2000/svg" viewBox="${[left, top, halfWidth * 2, halfHeight * 2].map((value) => String(Math.round(value * 100) / 100)).join(" ")}" style="${styleOf(
+		{
+			height: px(halfHeight * 2),
+			left: px(left),
+			top: px(top),
+			width: px(halfWidth * 2),
+		},
+	)}">${context.defs}${opened}${content}${"</g>".repeat(chain.length)}</svg>`;
+}
+
+function drawText(
+	shape: Element,
+	body: Element | undefined,
+	rendered: Element | undefined,
+	placement: Placement,
+	html: string,
+) {
+	const properties = childNamed(body, "a:bodyPr");
+	const inset = (side: string, fallback: number) => {
+		const value =
+			properties?.getAttribute(`${side}Ins`) ??
+			shape.getAttribute(`data-ooxml-${side[0]}-ins`);
+		return (
+			Number(value === null || Number(value) < 0 ? fallback : value) /
+			EMU_PER_PX
+		);
+	};
+
+	const anchor =
+		properties?.getAttribute("anchor") ??
+		attributeOf(shape, "data-ooxml-anchor") ??
+		inferAnchor(rendered, placement);
+	const wrap =
+		(properties?.getAttribute("wrap") ??
+			shape.getAttribute("data-ooxml-wrap")) !== "none";
+	return `<div class="pptx-shape pptx-text" style="${styleOf({
+		...boxOf(placement),
+		"justify-content":
+			anchor === "ctr" ? "center" : anchor === "b" ? "flex-end" : undefined,
+		"padding-bottom": px(inset("b", 45_720)),
+		"padding-left": px(inset("l", 91_440)),
+		"padding-right": px(inset("r", 91_440)),
+		"padding-top": px(inset("t", 45_720)),
+		"white-space": wrap ? undefined : "pre",
+	})}">${html}</div>`;
+}
+
+/** Infers a text box's vertical anchor from where pptx-svg laid out its lines, for anchors inherited from layouts. */
+function inferAnchor(rendered: Element | undefined, placement: Placement) {
+	const ys = [...(rendered?.children ?? [])]
+		.map((line) => Number(line.getAttribute("y")))
+		.filter((y) => Number.isFinite(y) && y > 0);
+	if (!ys.length) {
+		return "t";
+	}
+
+	const top = Math.min(...ys) - placement.y;
+	const bottom = placement.y + placement.height - Math.max(...ys);
+	if (Math.abs(top - bottom) < placement.height * 0.15) {
+		return "ctr";
+	}
+
+	return bottom < top ? "b" : "t";
+}
+
+function numberOf(shape: Element, name: string) {
+	return Number(shape.getAttribute(`data-ooxml-${name}`) ?? 0);
+}
+
+function opacityOf(drawn: Element | undefined, attribute = "fill-opacity") {
+	const value = drawn?.getAttribute(attribute);
+	return value && Number(value) < 1 ? Number(value) : undefined;
+}

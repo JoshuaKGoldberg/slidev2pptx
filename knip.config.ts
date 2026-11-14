@@ -1,7 +1,7 @@
 import type { KnipConfig } from "knip";
 
 export default {
-	entry: ["qa/*/*.ts", "src/ssr/*", "src/**/*.test.*"],
+	entry: ["qa/*.ts", "qa/*/*.ts", "src/ssr/*", "src/**/*.test.*"],
 	ignore: ["src/fixture/**"],
 	ignoreExportsUsedInFile: { interface: true, type: true },
 	ignoreUnresolved: [/^#slidev\//],
