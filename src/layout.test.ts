@@ -166,26 +166,33 @@ describe(createLayout, () => {
 		).toEqual(expect.objectContaining({ height: 40, width: 60 }));
 	});
 
-	it("lays out and rasterizes an image too big for takumi to decode", async () => {
-		// An 8200x100 PNG, over takumi's 8192 pixels on a side.
-		const html = `<img id="wide" src="/wide.png" style="display: block; width: 820px">`;
-		const { boxes, document } = await layOut(html);
-		const png = await layout.rasterize(
-			layout.prepare(1, html, { rules }, {}),
-			{ sheets },
-			{ box: { height: 10, width: 820, x: 0, y: 0 }, selector: "#wide" },
-		);
+	it.each([
+		// Shrunk to fit what takumi decodes, so it draws.
+		["/wide.png", "FF0000", false],
+		// Not a format slidev2pptx shrinks, so it's blank and reported.
+		["/wide.gif", "FFFFFF", true],
+	])(
+		"lays out and rasterizes %s, an 8200x100 image too big for takumi to decode",
+		async (src, color, reported) => {
+			const html = `<img id="wide" src="${src}" style="display: block; width: 328px">`;
+			const { boxes, document } = await layOut(html);
+			const png = await layout.rasterize(
+				layout.prepare(1, html, { rules }, {}),
+				{ sheets },
+				{ box: { height: 4, width: 328, x: 0, y: 0 }, selector: "#wide" },
+			);
 
-		expect({
-			box: boxes.get(document.querySelector("img")?.getAttribute(ID) ?? ""),
-			oversized: layout.oversizedImages(),
-			png: png && imageSize(png),
-		}).toEqual({
-			box: expect.objectContaining({ height: 10, width: 820 }),
-			oversized: [{ height: 100, src: "/wide.png", width: 8200 }],
-			png: { height: 20, width: 1640 },
-		});
-	});
+			expect({
+				box: boxes.get(document.querySelector("img")?.getAttribute(ID) ?? ""),
+				color: png && (await layout.averageColor(png)),
+				reported: layout.oversizedImages().some((image) => image.src === src),
+			}).toEqual({
+				box: expect.objectContaining({ height: 4, width: 328 }),
+				color,
+				reported,
+			});
+		},
+	);
 
 	it("gives white space to the text it's in when takumi lays it out as a run of its own", async () => {
 		const { document, runs } = await layOut(

@@ -18,6 +18,7 @@ import {
 	laysOutApart,
 } from "./cascade.ts";
 import { parseDeclarations } from "./css.ts";
+import { shrinkImage } from "./shrink.ts";
 
 /** CSS properties that inherit, which the slide content passes down from ancestors takumi doesn't lay out. */
 const INHERITED_PROPERTIES = [
@@ -182,7 +183,8 @@ export function createLayout({
 	/**
 	 * An image's data as takumi should draw it: a GIF as a PNG of its first frame,
 	 * as takumi draws GIFs shrunk and smeared at device pixel ratios above 1,
-	 * and an image too big for takumi to decode as a blank one of the same size.
+	 * and an image too big for takumi to decode shrunk to fit, in an SVG of its
+	 * natural size, or else as a blank one.
 	 */
 	const stillOf = (src: string) => {
 		const cached = stills.get(src);
@@ -193,14 +195,19 @@ export function createLayout({
 		const still = assets.load(src).then(async (data) => {
 			const format = data && imageFormat(data);
 			const size = data && imageSize(data);
-			if (!data || !size || format === "svg") {
+			if (!data || !format || !size || format === "svg") {
 				return data;
 			}
 
 			if (Math.max(size.height, size.width) > MAX_DECODED_SIDE) {
-				oversized.push({ src, ...size });
+				const shrunk = shrinkWithin(data, format);
+				if (!shrunk) {
+					oversized.push({ src, ...size });
+				}
+
+				const dimensions = `width="${String(size.width)}" height="${String(size.height)}"`;
 				return Buffer.from(
-					`<svg xmlns="http://www.w3.org/2000/svg" width="${String(size.width)}" height="${String(size.height)}"/>`,
+					`<svg xmlns="http://www.w3.org/2000/svg" ${dimensions}>${shrunk ? `<image ${dimensions} preserveAspectRatio="none" href="data:image/${format};base64,${shrunk.toString("base64")}"/>` : ""}</svg>`,
 				);
 			}
 
@@ -602,6 +609,15 @@ export function isBackgroundOnly(
 		element.closest(`[${STATIC_LAYER}]`) !== null &&
 		(styles.get(element)?.filter ?? "none") !== "none"
 	);
+}
+
+function shrinkWithin(data: Buffer, format: string) {
+	try {
+		return shrinkImage(data, format, MAX_DECODED_SIDE);
+	} catch {
+		// Too big or malformed to decode, so it's reported as oversized.
+		return undefined;
+	}
 }
 
 const appendStyle = (element: Element, css: string) => {

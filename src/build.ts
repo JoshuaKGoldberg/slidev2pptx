@@ -207,7 +207,7 @@ async function build(
 
 		for (const { height, src, width } of layout.oversizedImages()) {
 			report({
-				message: `${src} is ${String(width)}x${String(height)}, and takumi can't draw images over 8192 pixels on a side, so it's blank wherever slidev2pptx rasterizes it. Shrink it to draw it there.`,
+				message: `${src} is ${String(width)}x${String(height)}, and takumi can't draw images over 8192 pixels on a side, and slidev2pptx couldn't shrink it, so it's blank wherever slidev2pptx rasterizes it. Shrink it to draw it there.`,
 				severity: "warning",
 			});
 		}
