@@ -24,6 +24,8 @@ export interface SlidePatch {
 	lists: {
 		/** The markers' color as uppercase hex, when it isn't the text's. */
 		color?: string;
+		/** EMU each marked paragraph hangs its marker by, so the marker sits just before its text as a browser's outside marker does. */
+		hang: number;
 		/** Each paragraph's marker, in order; undefined where it shows none. */
 		markers: (Marker["kind"] | undefined)[];
 		name: string;
@@ -332,9 +334,9 @@ export function patchSlide(
 		);
 	}
 
-	for (const { color, markers, name } of patch.lists) {
+	for (const { color, hang, markers, name } of patch.lists) {
 		patched = replaceShape(patched, name, (shape) =>
-			styleMarkers(shape, markers, color),
+			styleMarkers(shape, markers, color, hang),
 		);
 	}
 
@@ -470,6 +472,7 @@ function styleMarkers(
 	shape: string,
 	markers: SlidePatch["lists"][number]["markers"],
 	color: string | undefined,
+	hang: number,
 ) {
 	const bulletColor = color
 		? `<a:buClr><a:srgbClr val="${color}"/></a:buClr>`
@@ -478,8 +481,13 @@ function styleMarkers(
 	let index = 0;
 	const styled = shape.replace(
 		/<a:pPr\b[^>]*?(?:\/>|>.*?<\/a:pPr>)/gs,
-		(properties) => {
+		(original) => {
 			const marker = markers.at(index++);
+			// pptxgenjs hangs a marker by a whole level's indent, which puts it at the list's
+			// edge rather than beside an indented or nested item's text.
+			const properties = marker
+				? original.replace(/ indent="-\d+"/, ` indent="-${String(hang)}"`)
+				: original;
 			switch (marker) {
 				// Arial's ● at 60% best matches a browser's disc marker in size and height (measured in
 				// PowerPoint), and its ○ and ■ its circle and square.

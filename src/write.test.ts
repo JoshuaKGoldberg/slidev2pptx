@@ -273,6 +273,33 @@ describe(writePptx, () => {
 		);
 	});
 
+	it("spaces lines exactly when a paragraph mixes font sizes", async () => {
+		const xml = await slideXml([
+			textItem([[run("“", { size: 36 }), run("Quoted text")]]),
+		]);
+
+		expect(xml).toContain('<a:lnSpc><a:spcPts val="3600"/></a:lnSpc>');
+		expect(xml).not.toContain("<a:spcPct");
+	});
+
+	it("spaces lines by their measured pitch when a paragraph mixes font sizes", async () => {
+		expect(
+			await slideXml([
+				textItem([[run("“", { size: 36 }), run("Quoted text")]], {
+					baselines: [40, 84, 128],
+				}),
+			]),
+		).toContain('<a:lnSpc><a:spcPts val="4400"/></a:lnSpc>');
+	});
+
+	it("spaces lines as a multiple when a paragraph's sizes differ only in a superscript", async () => {
+		expect(
+			await slideXml([
+				textItem([[run("x"), run("2", { script: "super", size: 16 })]]),
+			]),
+		).toContain('<a:lnSpc><a:spcPct val="125000"/></a:lnSpc>');
+	});
+
 	it("throws when a text item has no runs", async () => {
 		await expect(slideXml([textItem([[]])])).rejects.toThrow(
 			"Text items need at least one run.",
@@ -424,7 +451,7 @@ describe(writePptx, () => {
 
 		expect(xml?.match(/<a:pPr\b.*?<\/a:pPr>/g)).toEqual([
 			'<a:pPr algn="l" marL="228600" indent="-228600"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buSzPct val="60000"/><a:buFont typeface="Arial"/><a:buChar char="&#x25CF;"/></a:pPr>',
-			'<a:pPr algn="l" lvl="1" marL="533400" indent="-266700"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buSzPct val="100000"/><a:buFontTx/><a:buAutoNum type="arabicPeriod" startAt="1"/></a:pPr>',
+			'<a:pPr algn="l" lvl="1" marL="533400" indent="-228600"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buSzPct val="100000"/><a:buFontTx/><a:buAutoNum type="arabicPeriod" startAt="1"/></a:pPr>',
 		]);
 	});
 
@@ -476,7 +503,13 @@ describe(writePptx, () => {
 					listParagraph("Child", { indent: 24, level: 1 }),
 				]),
 			]),
-		).toContain('<a:pPr algn="l" lvl="1" marL="533400" indent="-266700">');
+		).toContain('<a:pPr algn="l" lvl="1" marL="533400" indent="-228600">');
+	});
+
+	it("hangs a marker just before its text when the item itself is indented", async () => {
+		expect(
+			await slideXml([listItem([listParagraph("Indented", { indent: 60 })])]),
+		).toContain('<a:pPr algn="l" marL="990600" indent="-228600">');
 	});
 
 	it("numbers an item from its own number when a nested list comes before it", async () => {

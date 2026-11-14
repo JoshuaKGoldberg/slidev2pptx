@@ -255,6 +255,30 @@ describe(createLayout, () => {
 		});
 	});
 
+	it("inherits styles from ancestors around the slide content, which takumi doesn't lay out", async () => {
+		const rootSheets = [
+			...sheets,
+			"html { line-height: 2 } p { font-size: 20px }",
+		];
+		const { runs } = await layout.layoutState(
+			layout.prepare(
+				1,
+				"<p>one<br>two</p>",
+				{
+					rules: createCascade(rootSheets, {
+						colorScheme: "light",
+						viewport: canvas,
+					}),
+				},
+				{},
+			),
+			{ sheets: rootSheets },
+		);
+		const [first, second] = [...runs.values()][0].runs;
+
+		expect(second.y - first.y).toBe(40);
+	});
+
 	it("lays out a table's rows when they aren't in a row group", async () => {
 		const { looseRuns, mismatches } = await layOut(
 			`<p style="display: inline-table"><span style="display: table-row">a</span><span style="display: table-row">b</span></p>`,

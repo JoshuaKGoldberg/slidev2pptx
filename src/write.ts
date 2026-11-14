@@ -412,6 +412,7 @@ function createItemWriter({
 			code,
 			firstRun,
 			lineHeight,
+			mixedPitch,
 			outline,
 			rtl,
 			wrap,
@@ -419,6 +420,8 @@ function createItemWriter({
 			code: boolean;
 			firstRun: Run;
 			lineHeight: number;
+			/** The measured line pitch of paragraphs that mix font sizes, which PowerPoint spaces exactly. */
+			mixedPitch?: number;
 			/** Whether this is the outlined copy behind a text stroke. */
 			outline: boolean;
 			rtl: boolean;
@@ -431,7 +434,8 @@ function createItemWriter({
 				? mergeRuns(paragraph.runs, wrap)
 				: [blankRun(firstRun)];
 			const baseSize = baseSizeOf(pieces);
-			const multiple = lineSpacingOf(lineHeight, baseSize);
+			const exact = lineHeight > 0 && hasMixedSizes(pieces);
+			const multiple = exact ? undefined : lineSpacingOf(lineHeight, baseSize);
 			return pieces.map((run, runIndex) => {
 				const hyperlink = run.href && !run.pad ? { url: run.href } : undefined;
 				const options: pptxgen.default.TextPropsOptions = {
@@ -450,6 +454,9 @@ function createItemWriter({
 					indentLevel: paragraph.indentLevel,
 					italic: run.italic,
 					lang: run.upper ? UPPERCASE_LANG : undefined,
+					lineSpacing: exact
+						? Math.round(points(mixedPitch ?? lineHeight) * 100) / 100
+						: undefined,
 					lineSpacingMultiple: multiple,
 					outline:
 						outline && run.stroke
@@ -489,10 +496,19 @@ function createItemWriter({
 		name: string,
 		visibleParagraphs: boolean[] | undefined,
 	) => {
+		// Lines mixing font sizes grow taller than their CSS line height, as each size's half-leading differs, so measure them.
+		const mixedPitch =
+			item.kind === "text" &&
+			item.baselines &&
+			item.paragraphs.some(({ runs }) => hasMixedSizes(runs))
+				? measuredPitch(item.baselines, item.style.lineHeight)
+				: undefined;
 		const style =
 			item.kind === "code"
 				? { ...item.style, lineHeight: codePitch(item) }
-				: item.style;
+				: mixedPitch && hasMixedSizes(item.paragraphs[0]?.runs ?? [])
+					? { ...item.style, lineHeight: mixedPitch }
+					: item.style;
 		const rotation = item.kind === "text" ? item.rotation : 0;
 		const markerGap =
 			item.kind === "list"
@@ -544,7 +560,9 @@ function createItemWriter({
 		const runOptions = {
 			code: item.kind === "code",
 			firstRun,
-			lineHeight: style.lineHeight,
+			lineHeight:
+				item.kind === "code" ? style.lineHeight : item.style.lineHeight,
+			mixedPitch,
 			rtl: style.rtl,
 			wrap: !style.nowrap,
 		};
@@ -570,6 +588,7 @@ function createItemWriter({
 		if (list) {
 			patch.lists.push({
 				color: list.color,
+				hang: Math.max(1, Math.round(points(markerGap) * EMU_PER_POINT)),
 				markers: list.paragraphs.map(({ marker }) => marker),
 				name,
 			});
@@ -747,17 +766,22 @@ function titleLook(
 
 /** The line pitch of a code block, measured from its baselines; blank lines make some gaps span several lines. */
 export function codePitch({ baselines, style }: CodeItem) {
+	return measuredPitch(baselines, style.lineHeight);
+}
+
+/** The line pitch of laid-out lines, measured from their baselines; gaps spanning blank lines or paragraph spacing count as several lines. */
+function measuredPitch(baselines: number[], lineHeight: number) {
 	const pitches = baselines
 		.slice(1)
 		.map((baseline, index) => baseline - baselines[index])
 		.filter((gap) => gap > MIN_LINE_GAP)
-		.map((gap) => gap / Math.max(1, Math.round(gap / style.lineHeight)))
+		.map((gap) => gap / Math.max(1, Math.round(gap / lineHeight)))
 		.sort((a, b) => a - b);
 	const pitch = pitches.at(Math.floor(pitches.length / 2));
 	return pitch !== undefined &&
-		Math.abs(pitch - style.lineHeight) > LINE_PITCH_TOLERANCE
+		Math.abs(pitch - lineHeight) > LINE_PITCH_TOLERANCE
 		? pitch
-		: style.lineHeight;
+		: lineHeight;
 }
 
 /** A list's paragraphs, with the space after each in the whole points PowerPoint rounds to, keeping their running total exact. */
@@ -1021,6 +1045,15 @@ function firstRunOf(paragraphs: Paragraph[]) {
 
 const baseSizeOf = (runs: Run[]) =>
 	(runs.find((run) => !run.script) ?? runs[0]).size;
+
+/**
+ * Whether a paragraph mixes font sizes, outside of super- and subscripts.
+ * CSS gives every line at least the paragraph's line height, but PowerPoint
+ * scales a spacing multiple by each line's largest font, which would squeeze
+ * lines of only smaller text.
+ */
+const hasMixedSizes = (runs: Run[]) =>
+	new Set(runs.filter((run) => !run.script).map((run) => run.size)).size > 1;
 
 /** A paragraph's line spacing, as a multiple of single spacing. */
 const lineSpacingOf = (lineHeight: number, baseSize: number) =>

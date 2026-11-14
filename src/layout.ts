@@ -19,6 +19,25 @@ import {
 } from "./cascade.ts";
 import { parseDeclarations } from "./css.ts";
 
+/** CSS properties that inherit, which the slide content passes down from ancestors takumi doesn't lay out. */
+const INHERITED_PROPERTIES = [
+	"color",
+	"direction",
+	"font-family",
+	"font-size",
+	"font-style",
+	"font-weight",
+	"letter-spacing",
+	"line-height",
+	"overflow-wrap",
+	"text-align",
+	"text-indent",
+	"text-transform",
+	"white-space",
+	"word-break",
+	"word-spacing",
+] as const;
+
 /** The attribute that ties takumi's nodes back to DOM elements. */
 export const ID = "data-pptx-id";
 
@@ -179,8 +198,26 @@ export function createLayout({
 		return declarations.flat().join(";");
 	};
 
-	const takumiNodeOf = async (content: Element) => {
+	/**
+	 * The slide content as a takumi node. As takumi lays out only the slide
+	 * content, it can't inherit styles from the ancestors around it, such as a
+	 * deck's `body { line-height }`, so the content gets its own computed
+	 * inherited values instead.
+	 */
+	const takumiNodeOf = async (content: Element, own?: ComputedStyle) => {
 		const copy = content.cloneNode(true) as Element;
+		if (own) {
+			copy.setAttribute(
+				"style",
+				[
+					...INHERITED_PROPERTIES.flatMap((property) =>
+						own[property] ? [`${property}:${own[property]}`] : [],
+					),
+					copy.getAttribute("style") ?? "",
+				].join(";"),
+			);
+		}
+
 		for (const image of copy.querySelectorAll("img:not([src]), img[src='']")) {
 			image.remove();
 		}
@@ -256,16 +293,23 @@ export function createLayout({
 		sheets: string[],
 		size: Canvas,
 	) =>
-		renderer.render(await takumiNodeOf(slideContentOf(document)), {
-			...(await renderOptions(prepared, sheets)),
-			devicePixelRatio: RASTER_SCALE,
-			format: "png",
-			height: Math.round(size.height * RASTER_SCALE),
-			width: Math.round(size.width * RASTER_SCALE),
-		});
+		renderer.render(
+			await takumiNodeOf(
+				slideContentOf(document),
+				prepared.styles.get(slideContentOf(prepared.document)),
+			),
+			{
+				...(await renderOptions(prepared, sheets)),
+				devicePixelRatio: RASTER_SCALE,
+				format: "png",
+				height: Math.round(size.height * RASTER_SCALE),
+				width: Math.round(size.width * RASTER_SCALE),
+			},
+		);
 
 	async function measureLayout(prepared: Prepared, sheets: string[]) {
-		const node = await takumiNodeOf(slideContentOf(prepared.document));
+		const content = slideContentOf(prepared.document);
+		const node = await takumiNodeOf(content, prepared.styles.get(content));
 		const measured = await renderer.measure(node, {
 			...(await renderOptions(prepared, sheets)),
 			height: canvas.height,
