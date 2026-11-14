@@ -168,6 +168,9 @@ importers:
       vue-eslint-parser:
         specifier: 10.4.2
         version: 10.4.2(eslint@10.14.0(jiti@2.7.0))
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
 
 packages:
 

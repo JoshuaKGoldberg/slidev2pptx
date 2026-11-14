@@ -1,0 +1,1269 @@
+[
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2026-05-21",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2026-05-21-what-s-new-in-typescript-6-0",
+		"number": 1,
+		"title": "What's New in TypeScript 6.0",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/IQCCygPYtjc9QZ3OY-hQkA9xAXku1klEg2CQy-LQ8Dbjnfk",
+		"sha256": "33390ddd7201106b6616e99f009a6cbbf2566d03bcc90f409c922100face7dd4",
+		"slides": 67
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2026-03-28",
+				"event": "Boston Code Camp 40"
+			}
+		],
+		"id": "2026-03-28-how-to-learn-to-love-the-linter",
+		"number": 2,
+		"title": "How to Learn to Love the Linter",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/IQCDmSvMrSo4QYFv6ue2TinVAaxRaRBZz2FJ8LXR0jHmzts",
+		"sha256": "26dd30cdd4fb9029c5e3b8dd0575d73581f3907cc37e912fff35776a92c60545",
+		"slides": 96
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2026-03-23",
+				"event": "AspireConf 2026"
+			}
+		],
+		"id": "2026-03-23-typescript-and-aspire",
+		"number": 3,
+		"title": "TypeScript and Aspire",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/IQBDHbuSZn3gRZ_IOZy85E17ATWFM6BakQDbxnLWXwvh3iM",
+		"sha256": "8bb9f48a20abca0c1152cd69b965cca60d46934cbe933772369171ce6e8a252f",
+		"slides": 56
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2025-12-16",
+				"event": "NodeTLV 2025"
+			}
+		],
+		"id": "2025-12-16-tooling-like-it-s-2025",
+		"number": 4,
+		"title": "Tooling Like It’s 2025",
+		"url": "https://joshypoomcswaggins-my.sharepoint.com/:p:/g/personal/joshgoldberg_joshypoomcswaggins_onmicrosoft_com/IQDAah3SqTTGTp03wNZsbPTwAVmqg2cNahY3I4u1zmQgjro?e=A0w1CG"
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2025-10-21",
+				"event": "MagnoliaConf 2025"
+			}
+		],
+		"id": "2025-10-21-why-is-typescript-like-this",
+		"number": 5,
+		"title": "Why is TypeScript Like This?",
+		"url": "https://joshypoomcswaggins-my.sharepoint.com/:p:/g/personal/joshgoldberg_joshypoomcswaggins_onmicrosoft_com/EVdsRRbj4ptJhWNcqxTZN4MBoz4vI0XF0imMLKGRyqgsjw?e=gKXIew&nav=eyJzSWQiOjE1MDEsImNJZCI6NzYxNzUxODQxfQ"
+	},
+	{
+		"category": "Workshops",
+		"events": [
+			{
+				"date": "2025-09-06",
+				"event": "Boston Code and Coffee"
+			}
+		],
+		"id": "2025-09-06-introduction-to-typescript",
+		"number": 6,
+		"title": "Introduction to TypeScript",
+		"url": "https://joshypoomcswaggins-my.sharepoint.com/:p:/g/personal/joshgoldberg_joshypoomcswaggins_onmicrosoft_com/EUmgum7Xy6pLsJgLwQ20SW4Bd1jM0ZWrJA2DPbXqkpPT5g?e=K1ya9R"
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2025-07-17",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2025-07-17-how-to-set-up-a-typescript-project-in-2025",
+		"number": 7,
+		"title": "How to Set Up a TypeScript Project in 2025",
+		"url": "https://joshypoomcswaggins-my.sharepoint.com/:p:/g/personal/joshgoldberg_joshypoomcswaggins_onmicrosoft_com/EW_860bTjmBIlBrPGiynibABzCSt-r3pZHr6i1iy-NkPPA?e=7dqe9R"
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2025-06-24",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2025-06-24-what-s-new-in-typescript-5-9",
+		"number": 8,
+		"title": "What's New in TypeScript 5.9",
+		"url": "https://joshypoomcswaggins-my.sharepoint.com/:p:/g/personal/joshgoldberg_joshypoomcswaggins_onmicrosoft_com/EeyRJqPtmAdOhZ5vx3TaaToBVMoshiBA6MVYkrgnJgvmyQ?e=mMijB6"
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2025-05-29",
+				"event": "JSHeroes 2025"
+			}
+		],
+		"id": "2025-05-29-tooling-like-it-s-2025",
+		"number": 9,
+		"title": "Tooling Like It's 2025",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/EVUYxf_tAeRDnO6VLlEBC4cBuuQMKjwImZLx4jhLqTISVQ",
+		"sha256": "22712c19adcc61149359c1a0a045e7d9c6ab6268d8a09a6fb01f24a2f38d77d0",
+		"slides": 146
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2025-05-27",
+				"event": "JNation 2025"
+			}
+		],
+		"id": "2025-05-27-types-beyond-typescript",
+		"number": 10,
+		"title": "Types Beyond TypeScript",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/EaXjXllDAs1LgW4G4If3rnsBbmMXCpgtfbltx__QgAePpQ",
+		"sha256": "c9839e37ee2a08363ffec97873bc79449387e0f5fc893666bcc29e2f5238cb8b",
+		"slides": 107
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2025-03-19",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2025-03-19-what-s-new-in-typescript-5-8",
+		"number": 11,
+		"title": "What's New in TypeScript 5.8",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/EewQYfBZaf1GvwkzonnYf74BoDCBtLM3GFqsqz5GT40y2w",
+		"sha256": "2a014ecb1d8258f166f5ba35ce9365d057880934e0e8bea88f3b16ca9d50fb0e",
+		"slides": 49
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2025-02-28",
+				"event": "Paris TypeScript la Conf'"
+			}
+		],
+		"id": "2025-02-28-typescript-s-teenage-years",
+		"number": 12,
+		"title": "TypeScript's Teenage Years",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/Eank6JDG2JtIjbvKUlp47pkBad5tfRGj9CwOJJ44-m8xww",
+		"sha256": "201f25fbc3e1565b8a8d67c918fcb1afbdbc5f0a1b6f23bb82b5acef4f5ef999",
+		"slides": 99
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2025-01-16",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2025-01-16-what-s-new-in-typescript-5-7",
+		"number": 13,
+		"title": "What's New in TypeScript 5.7",
+		"url": "https://joshypoomcswaggins-my.sharepoint.com/:p:/g/personal/joshgoldberg_joshypoomcswaggins_onmicrosoft_com/EWiCqDEUZVNEuxZ8GaoS1KUBUvnPPeVqvEq3je1UoYsnlA?e=CS0ME8"
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2024-10-24",
+				"event": "JetBrains JavaScript Day 2024"
+			}
+		],
+		"id": "2024-10-24-typescript-generics-practical-fun",
+		"number": 14,
+		"title": "TypeScript Generics: Practical Fun",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuc_Q-_DJaamt8GvsA",
+		"sha256": "0ce36fa81cc58e39f3de03f5e06e888d6cb93437bccb443049110ea4e92299d8",
+		"slides": 113
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2024-09-26",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2024-09-26-what-s-new-in-typescript-5-6",
+		"number": 15,
+		"title": "What's New in TypeScript 5.6",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/EfUc1cvPrJkggNa7sw8AAAABSooZOzfQXAiXc3INFa6XKw",
+		"sha256": "8847b94805f071d04224298f865a808020b3b6e340ca85c19d1068a8278cd8d6",
+		"slides": 19
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2024-07-27",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2024-07-27-what-s-new-in-typescript-5-5",
+		"number": 16,
+		"title": "What's New in TypeScript 5.5",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/EfUc1cvPrJkggNa1sw8AAAABA8UrfHuVCDjbB1v0z3K96Q",
+		"sha256": "13b9c142c9349f7ebb95d170faafd40c3cbf3f5d2a71ac6a28336a407b04476f",
+		"slides": 21
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2024-06-19",
+				"event": "CascadiaJS 2024"
+			}
+		],
+		"id": "2024-06-19-your-ai-needs-an-assistant",
+		"number": 17,
+		"title": "Your AI Needs an Assistant",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucjqgr5yDYgg0UeLA",
+		"sha256": "08c8fa8217ab7a6f965eba85687288dc499e3f67cb4261bdac936403fdfdfa77",
+		"slides": 98
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2024-06-12",
+				"event": "React Summit 2024"
+			}
+		],
+		"id": "2024-06-12-types-beyond-typescript",
+		"number": 18,
+		"title": "Types Beyond TypeScript",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucs8iTt_07z09exqA",
+		"sha256": "c53c1bc5cfb4befb91b4e44fc4b1d8bf141fbeaab2ec745a075b0f25a4162a9f",
+		"slides": 94
+	},
+	{
+		"category": "Workshops",
+		"events": [
+			{
+				"date": "2024-06-12",
+				"event": "React Summit 2024"
+			}
+		],
+		"id": "2024-06-12-typescript-deep-dive",
+		"number": 19,
+		"title": "TypeScript Deep Dive",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuczH8bDQeUU4-5HhQ",
+		"sha256": "40f6b2037af184d3a3832de74eb7fb99749189be105123b9c1143869501f16a2",
+		"slides": 121
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2024-05-23",
+				"event": "JSHeroes"
+			}
+		],
+		"id": "2024-05-23-type-safe-style-systems-the-future-of-css",
+		"number": 20,
+		"title": "Type-Safe Style Systems: The Future of CSS",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucokO5vNfGARtHveQ",
+		"sha256": "f09ccfb54e69226494c366df586503ba956ebf75c9810c5930b0d1762334c922",
+		"slides": 98
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2024-04-18",
+				"event": "Boston TS Club"
+			}
+		],
+		"id": "2024-04-18-what-s-new-in-typescript-5-4",
+		"number": 21,
+		"title": "What's New in TypeScript 5.4",
+		"url": "https://1drv.ms/p/c/d699accfcbd51cf5/EfUc1cvPrJkggNadsw8AAAABF7EL0IhTnbNca5RIab61qQ",
+		"sha256": "0788974ca115a17dbcd8c6503d25cec45c991ba73dae65278dec5f650448e193",
+		"slides": 40
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2024-04-09",
+				"event": "Emerging Tech East 2024"
+			}
+		],
+		"id": "2024-04-09-understanding-typescript-fixing-the-billion-dollar-mistake-and-other-concepts",
+		"number": 22,
+		"title": "Understanding TypeScript: Fixing the Billion Dollar Mistake and Other Concepts",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucT2vxxg8ukjPe3ww",
+		"sha256": "49af226598663b1b73aa042b24a4190f1ef7c54e6dc5b316d0c9d4cf6a860be0",
+		"slides": 77
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2024-04-09",
+				"event": "Emerging Tech East 2024"
+			}
+		],
+		"id": "2024-04-09-the-best-typescript-features-you-might-not-be-using",
+		"number": 23,
+		"title": "The Best TypeScript Features You Might Not Be Using",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucVCCzAFxr3o8Dz9w",
+		"sha256": "228d75fe13696d59f48b486886dedd0d7dca4974adf1387a24755c7bfaa54154",
+		"slides": 112
+	},
+	{
+		"category": "Workshops",
+		"events": [
+			{
+				"date": "2024-04-08",
+				"event": "Node Congress 2024"
+			}
+		],
+		"id": "2024-04-08-deep-typescript-tips-and-tricks",
+		"number": 24,
+		"title": "Deep TypeScript Tips and Tricks",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucR9JEAF12RCpXGNw",
+		"sha256": "65bd82cd137c2a8721ab03971d4acb20923d6e6921f78a63c5ed7e03eab2e794",
+		"slides": 77
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2024-04-03",
+				"event": "CityJS London 2024"
+			}
+		],
+		"id": "2024-04-03-the-best-typescript-features-you-re-not-using",
+		"number": 25,
+		"title": "The Best TypeScript Features You're Not Using",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucPTe-lyqMnWVKdVg",
+		"sha256": "a91edd2bd826577fbfb0458476f01c817b4572e6dc5ab4eb1b18e803a803ecdd",
+		"slides": 112
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2024-03-14",
+				"event": "PhillyJS"
+			}
+		],
+		"id": "2024-03-14-styling-your-next-js-app",
+		"number": 26,
+		"title": "Styling your Next.js App",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvucNMmuanjYjn_XUIw",
+		"sha256": "e21514811e0f0366c7b3135909d42788a81c42c27dd588e61fdfe1b8e0ae2c51",
+		"slides": 91
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-12-08",
+				"event": "React Day Berlin 2023"
+			}
+		],
+		"id": "2023-12-08-type-system-react",
+		"number": 27,
+		"title": "Type System React",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuQNfsGTs7ru1I3Axw",
+		"sha256": "bf1d9b2b8bfbcb69232b6bcee6a21ba4e88db742ac1570eb728e40212110afd3",
+		"slides": 16
+	},
+	{
+		"category": "Workshops",
+		"events": [
+			{
+				"date": "2023-11-23",
+				"event": "Wey Wey Web 2023"
+			}
+		],
+		"id": "2023-11-23-typescript-for-javascripties",
+		"number": 28,
+		"title": "TypeScript for JavaScripties",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuQRIZaCrWtnYJwRGg",
+		"sha256": "48134fca9e35630e25542356ed68ac4417f98b402f2d799c8da858e7efde512c",
+		"slides": 40
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-11-23",
+				"event": "Wey Wey Web 2023"
+			}
+		],
+		"id": "2023-11-23-real-time-nostalgia-with-web-sockets",
+		"number": 29,
+		"title": "Real Time Nostalgia with Web Sockets",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuQPSA8YafPNO7NHLg",
+		"sha256": "94e60cf18bea050b89f4c2ace5c8a16ac460668024d67306be9ddeebacd8fe2d",
+		"slides": 36
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-11-19",
+				"event": "JSConf JP 2023"
+			}
+		],
+		"id": "2023-11-19-static-analysis-shockingly-awesome",
+		"number": 30,
+		"title": "Static Analysis: Shockingly Awesome! ⚡️",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuQ-Z78lXiYl5UVQEA",
+		"sha256": "a610032a761da7df4185233527c5cb37eb584307bc41a43b90ac16049ce04d9d",
+		"slides": 83
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-11-13",
+				"event": "React Summit 2023"
+			}
+		],
+		"id": "2023-11-13-type-safe-style-systems-the-future-of-css",
+		"number": 31,
+		"title": "Type-Safe Style Systems: The Future of CSS",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuMi-FLvoFlHme1QPg",
+		"sha256": "8bc3b98aff2d43df46a2400228281f5d100add41009a78e7aa8b0fa04abb5d67",
+		"slides": 85
+	},
+	{
+		"category": "Workshops",
+		"events": [
+			{
+				"date": "2023-11-07",
+				"event": "NodeConf EU 2023"
+			}
+		],
+		"id": "2023-11-07-floating-and-sinking-promises-let-s-fix-your-broken-async-code",
+		"number": 32,
+		"title": "Floating and Sinking Promises: Let’s Fix Your Broken Async Code",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuQL58wf2Pb4AXSyag",
+		"sha256": "8625e5ebd3636b5c2e2ea323f58f958e18846dbddbe4532c59d2991a53adfff2",
+		"slides": 58
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-10-26",
+				"event": "DevReach 2023"
+			}
+		],
+		"id": "2023-10-26-typescript-for-javascripties",
+		"number": 33,
+		"title": "TypeScript for JavaScripties",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuNesE6QkYRgJixZ9w",
+		"sha256": "9eea933b4a2e2b9e43dbb89dae05fe2aee0f903ae15c5164fe5a1c79d9dccfc8",
+		"slides": 72
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-10-25",
+				"event": "DevReach 2023"
+			}
+		],
+		"id": "2023-10-25-killing-mutants-with-mutation-testing",
+		"number": 34,
+		"title": "Killing Mutants with Mutation Testing",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuNccskQSRCBg1M1Hw",
+		"sha256": "402695df57240c85e1e9593ada95541a27f990f827fd4ca9f57ab4d13f6e8b19",
+		"slides": 45
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-10-20",
+				"event": "React Advanced 2023"
+			}
+		],
+		"id": "2023-10-20-power-fixing-react-performance-woes",
+		"number": 35,
+		"title": "Power Fixing React Performance Woes",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuMY-qq2DHH_aGBZ4w",
+		"sha256": "01e800c0ecf45fbdaaf0fed87c56bf1adbb4db4e524960ef59f1f32900fd446f",
+		"slides": 60
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-10-13",
+				"event": "LibertyJS 2023"
+			}
+		],
+		"id": "2023-10-13-building-a-design-system-mid-flight",
+		"number": 36,
+		"title": "Building a Design System Mid-Flight",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuMgsCt8tMkQgna1MA",
+		"sha256": "9114eaccb971cbc8a2e3bf630a22f1dce75b9f0996b2d5c5209c58291315655e",
+		"slides": 75
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-10-06",
+				"event": "revo.js 2023"
+			}
+		],
+		"id": "2023-10-06-you-could-lint-more",
+		"number": 37,
+		"title": "You Could Lint More",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuMeYEDLI5BZo-gJjw",
+		"sha256": "5e366c9f26a62dd1bb30effa9d16ce30e7187cafa530c43d8c52cfea8dd34836",
+		"slides": 90
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-10-05",
+				"event": "revo.js 2023"
+			}
+		],
+		"id": "2023-10-05-type-safe-style-systems-the-future-of-css",
+		"number": 38,
+		"title": "Type-Safe Style Systems: The Future of CSS",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuMcCHoud4DwsLktrw",
+		"sha256": "96ee5b14fa4b7f1e7b66913489647d890ec6ea7ad6e6048e6db2174b36e0cd76",
+		"slides": 85
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-10-03",
+				"event": "React India 2023"
+			}
+		],
+		"id": "2023-10-03-type-safe-style-systems-the-future-of-css",
+		"number": 39,
+		"title": "Type-Safe Style Systems: The Future of CSS",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuJo5Ff6J4u5RFi2qA",
+		"sha256": "d06d3008088d7a25568ee318878888986f87188c92737fe50e6d4c7bfdbfd081",
+		"slides": 54
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-09-29",
+				"event": "React Live 2023"
+			}
+		],
+		"id": "2023-09-29-detecting-react-bugs-automatically",
+		"number": 40,
+		"title": "Detecting React Bugs Automatically",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuMaI_-L-BkT9QQRYA",
+		"sha256": "f4866c63fb51724df78c6bcbcfdf6efc4bd807a338a0ac775dab97f8a328bbc1",
+		"slides": 78
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-09-26",
+				"event": "JSDay IE 2023"
+			}
+		],
+		"id": "2023-09-26-typescript-static-analysis-hidden-gems",
+		"number": 41,
+		"title": "TypeScript Static Analysis Hidden Gems",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuMWM4OEEUB2khjYjA",
+		"sha256": "c0d83c2d460de1ea38d4e3d1ce9266f21b8685dcf8e818843b69b4d6607812f9",
+		"slides": 71
+	},
+	{
+		"category": "Workshops",
+		"events": [
+			{
+				"date": "2023-08-09",
+				"event": "SeattleJS Conf 2023"
+			}
+		],
+		"id": "2023-08-09-typescript-for-javascripties",
+		"number": 42,
+		"title": "TypeScript for JavaScripties",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuE7lr9l-Z24Y1Z9Kw",
+		"sha256": "c140e89e31e933f19a8e7c41b8776c9f202cf98a22c96cf5c1629509694f5d29",
+		"slides": 104
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-08-08",
+				"event": "SeattleJS Conf 2023"
+			}
+		],
+		"id": "2023-08-08-static-analysis-don-t-fear-the-linter",
+		"number": 43,
+		"title": "Static Analysis: Don't Fear the Linter!",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuE5LELJVy5LuVm9Kw",
+		"sha256": "9dcb92c20fdcca892669fd5ca9f22ea7183b7a5a8064ec6598800bb41bd56c02",
+		"slides": 85
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-07-24",
+				"event": "THAT Conf WI 2023"
+			}
+		],
+		"id": "2023-07-24-typescript-for-javascripties-day-camp-edition",
+		"number": 44,
+		"title": "TypeScript for Javascripties: Day Camp Edition",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvuEPyh8LP9z8JcM-xQ",
+		"sha256": "bbfc6e0229d868e67c36aa647708de9e6520a22c87ca652fd6a72e5fba446df5",
+		"slides": 64
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-06-23",
+				"event": "KCDC 2023"
+			}
+		],
+		"id": "2023-06-23-floating-and-sinking-promises-understanding-broken-async-code",
+		"number": 45,
+		"title": "Floating and Sinking Promises: Understanding Broken Async Code",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvt92381lRk5ZuHm2dw",
+		"sha256": "281c48b082a3952ea4e44053e4bbd1c9e1ae8499b674f66f2f479578cfa9ecb8",
+		"slides": 52
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-06-22",
+				"event": "KCDC 2023"
+			}
+		],
+		"id": "2023-06-22-static-analysis-don-t-fear-the-linter",
+		"number": 46,
+		"title": "Static Analysis: Don't Fear the Linter",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvt90PBRDuBcngQYCPg",
+		"sha256": "941c99205717287ff7650c18bcda534103b06f29a95ad7872cf47d46f761a9d9",
+		"slides": 113
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-06-09",
+				"event": "Web Directions Code 2023"
+			}
+		],
+		"id": "2023-06-09-static-analysis-shockingly-useful",
+		"number": 47,
+		"title": "Static Analysis: Shockingly Useful! ⚡️",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvt8B6-y28tCUw7Xqmg",
+		"sha256": "5bf8866d64e3167bbd2f404a682c25b048f79a58d9c5d4ee7f07a9e56129b705",
+		"slides": 86
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-05-30",
+				"event": "CityJS Athens 2023"
+			}
+		],
+		"id": "2023-05-30-typescript-for-javascripties",
+		"number": 48,
+		"title": "TypeScript for JavaScripties",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvt5Xbqy62vlssO23Ew",
+		"sha256": "87b7fcdfbffccba8645857ee1453c69c1810df84ff7ccd5df9763d039313ef53",
+		"slides": 56
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-05-18",
+				"event": "JSConf India 2023"
+			}
+		],
+		"id": "2023-05-18-interviewing-developers-with-accuracy-and-precision",
+		"number": 49,
+		"title": "Interviewing Developers with Accuracy and Precision",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvt4kuQ5uqsWwXVu8MQ",
+		"sha256": "7ce57faa28c4a2a7a4a8e87aa14ca0e9dee94a3040ea0bd5005bc8b7c282fc17",
+		"slides": 45
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2023-05-17",
+				"event": "PhillyJS"
+			}
+		],
+		"id": "2023-05-17-the-life-and-times-of-an-open-source-maintainer",
+		"number": 50,
+		"title": "The Life and Times of an Open Source Maintainer",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvt4oE1oTyST7IfyJhg",
+		"sha256": "700f9dcce422492f98959c2cae19259e921cc56ebf056fe378e6d476bf430ed5",
+		"slides": 39
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-05-04",
+				"event": "Stir Trek 2023"
+			},
+			{
+				"date": "2021-07-14",
+				"event": "CSSCamp 2021"
+			}
+		],
+		"id": "2021-07-14-accessibility-design-systems-and-you",
+		"number": 51,
+		"title": "Accessibility, Design Systems, and YOU!",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtFnhBSaIhabdMf7oQ?e=0Me4QN",
+		"sha256": "4f978dcace450f587b8ccc5c2e3f4f314c700c631c4e8d22f87b050976af8159",
+		"slides": 46
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-04-21",
+				"event": "React Miami 2023"
+			}
+		],
+		"id": "2023-04-21-setting-up-eslint-and-typescript-for-react",
+		"number": 52,
+		"title": "Setting Up ESLint and TypeScript for React",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvt0cjx-_PLIwDIzclw",
+		"sha256": "940e65990c4638fb3c1523e940b06303778b8514583d34d0745ef41a0da2a82e",
+		"slides": 80
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-03-16",
+				"event": "StaffPlus NYC 2023"
+			}
+		],
+		"id": "2023-03-16-how-to-complain-positively",
+		"number": 53,
+		"title": "How to Complain Positively",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtxmfY5e0vvS62B62A",
+		"sha256": "c3d3fcd7d6938d46e1245b29f173be2c2a79cfa8372e578e16f5ec40f6fe958c",
+		"slides": 17
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2023-03-07",
+				"event": "Michigan TypeScript"
+			}
+		],
+		"id": "2023-03-07-enums-are-misunderstood-not-terrible",
+		"number": 54,
+		"title": "Enums are MISUNDERSTOOD (Not Terrible)",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtxotadetl0OqRwitA",
+		"sha256": "8a84b219e1dac485b429a9a32039d4d662dc987a486d94a837cc52fb63880ce1",
+		"slides": 38
+	},
+	{
+		"category": "Meetups",
+		"events": [
+			{
+				"date": "2023-02-22",
+				"event": "Wrocław TypeScript"
+			}
+		],
+		"id": "2023-02-22-linting-typescript-in-2023",
+		"number": 55,
+		"title": "Linting TypeScript in 2023",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtxkNY3xH62eTrZpDQ",
+		"sha256": "b998374d38b573efb4902b269cfc55e1a90ead71bdb9ca7e9492f147589cc113",
+		"slides": 32
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-02-15",
+				"event": "DeveloperWeek 2023"
+			}
+		],
+		"id": "2023-02-15-floating-and-sinking-promises",
+		"number": 56,
+		"title": "Floating and Sinking Promises",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtxb_0WRNwMDrhMGvg",
+		"sha256": "0b2c0d6622ca74df1b2c67e14621fc7bb3171f009043a8e842ba01313999d7b0",
+		"slides": 27
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2023-01-17",
+				"event": "THAT Conf Texas 2023"
+			}
+		],
+		"id": "2023-01-17-design-systems-maximum-consistency-minimum-effort",
+		"number": 57,
+		"title": "Design Systems: Maximum Consistency, Minimum Effort",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtRv5w2TlFXfhHorNQ",
+		"sha256": "d5a2d59c995d2ca23ba778b525670cae0028cfae843655a8d9b83b881196f7b7",
+		"slides": 63
+	},
+	{
+		"category": "Workshops",
+		"events": [
+			{
+				"date": "2023-01-16",
+				"event": "THAT Conf Texas 2023"
+			}
+		],
+		"id": "2023-01-16-typescript-for-javascripties",
+		"number": 58,
+		"title": "TypeScript for JavaScripties",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtRtHW5HQDcBV3ZVJw",
+		"sha256": "d84ed5822e57014b719333355f78d58ebe6dcc8a49c4a6f086bb82343518f4b5",
+		"slides": 107
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-12-02",
+				"event": "React Day Berlin 2022"
+			}
+		],
+		"id": "2022-12-02-statically-detecting-react-app-bugs-with-typescript-and-eslint",
+		"number": 59,
+		"title": "Statically Detecting React App Bugs with TypeScript and ESLint",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtRJt4bkrcKsMarwqg?e=ozt3AY",
+		"sha256": "dc6cf4fd384b8919ec22a75ef74b2fdfb0fd1526a92185cbb1c25dccf2c319e4",
+		"slides": 23
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-11-03",
+				"event": "LeadDev Berlin 2022"
+			}
+		],
+		"id": "2022-11-03-lessons-learned-from-refactors-and-rearchitectures",
+		"number": 60,
+		"title": "Lessons Learned from Refactors and Rearchitectures",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtRBZoYOVyAnuPeClQ",
+		"sha256": "420b81ecf1077259ae7f88904d5970e6cb69746480e764a3d757adb63ad10b62",
+		"slides": 66
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-10-30",
+				"event": "All Things Open 2022"
+			}
+		],
+		"id": "2022-10-30-typescript-static-analysis-hidden-gems",
+		"number": 61,
+		"title": "TypeScript Static Analysis Hidden Gems",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtRH7pSjEMV1rrpTqQ",
+		"sha256": "17458576f7731d4a31e5c07b79ae7475c5a161625633093e76a19d202518c8f9",
+		"slides": 54
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-10-14",
+				"event": "React Brussels 2022"
+			}
+		],
+		"id": "2022-10-14-webxr-karaoke",
+		"number": 62,
+		"title": "WebXR Karaoke",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtQ-v1RPuPSQg0LZRA",
+		"sha256": "6b2eee8b73f4c83678447e5f8d12373d25d9611c7245704b2df8bff966d62cb2",
+		"slides": 32
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-07-01",
+				"event": "HalfStack Newquay 2022"
+			}
+		],
+		"id": "2022-07-01-webxr-karaoke",
+		"number": 63,
+		"title": "WebXR Karaoke",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtQ8tOAxwVUF_gTUPg?e=X0uUHn",
+		"sha256": "b4facf65ba006d2691ef12b1ab95aec684d914e01fd40cf2c5b32ac5b31efbbf",
+		"slides": 28
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-06-15",
+				"event": "Prisma Day 2022"
+			}
+		],
+		"id": "2022-06-15-adventures-in-type-safe-prisma-clients",
+		"number": 64,
+		"title": "Adventures in Type Safe Prisma Clients",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtQLoqKbcgSfwfAZYw?e=fR6JqZ",
+		"sha256": "0769149f6ce1e461e7757488c6ebdea07e08ef1bca5dcbf5eeabf1a2fb923675",
+		"slides": 49
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-04-20",
+				"event": "React Global Online Summit 2022"
+			}
+		],
+		"id": "2022-04-20-props-mocks-and-context",
+		"number": 65,
+		"title": "Props, Mocks, and Context",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtMop28KDmFo0iZApg?e=L0FzQ2",
+		"sha256": "dfb6e98b68f1bca0f9ecee930f014b84bd88685cbbfa2de75bfbbf462acb6ce4",
+		"slides": 44
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-04-20",
+				"event": "React Global Online Summit 2022"
+			}
+		],
+		"id": "2022-04-20-beyond-tailwind",
+		"number": 66,
+		"title": "Beyond Tailwind",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtMqAvbgVF1kBMmFWQ?e=8F0qjh",
+		"sha256": "312ae1040817badbd921b3099be54701014d2816e7e6e54009d50b8eb0ba777f",
+		"slides": 43
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-04-06",
+				"event": "Untangling GraphQL 2022"
+			}
+		],
+		"id": "2022-04-06-demystifying-graphql-typings-generation",
+		"number": 67,
+		"title": "Demystifying GraphQL Typings Generation",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtMkNiknbpwMPMDC7A?e=cIRVur",
+		"sha256": "476874ae3bda008111db5c75af549157f0e9303dccc3c38a72d4400877eaac2e",
+		"slides": 30
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-04-01",
+				"event": "Web Directions Hover 2022"
+			}
+		],
+		"id": "2022-04-01-focus-visible-at-last",
+		"number": 68,
+		"title": "Focus Visible, At Last!",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtMMTmSteM_0OP3ywg?e=wYvucy"
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2022-02-07",
+				"event": "DeveloperWeek 2022"
+			}
+		],
+		"id": "2022-02-07-accessible-accessibility",
+		"number": 69,
+		"title": "Accessible Accessibility",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtJ7PdIicvSmM5PqYg?e=wa5WCD",
+		"sha256": "9aa731d99c2685e0ecc2890073c06b4be486655681ff181ff5ef5de85a4213f0",
+		"slides": 59
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-12-09",
+				"event": "GraphQL Galaxy 2021"
+			}
+		],
+		"id": "2021-12-09-graphql-apollo-next-js-a-lovely-trio",
+		"number": 70,
+		"title": "GraphQL + Apollo + Next.js: A Lovely Trio",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtJB3w7D6elasOWEZQ?e=oUoanS",
+		"sha256": "233e8f2c0deb91ac38316520727d9b361ea1f36b9f4be80e871c2b97e814e9f9",
+		"slides": 38
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-11-23",
+				"event": "WeAreDevelopers JS Congress 2021"
+			}
+		],
+		"id": "2021-11-23-graphql-apollo-next-js-a-lovely-trio",
+		"number": 71,
+		"title": "GraphQL + Apollo + Next.js: A Lovely Trio",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtI2Ha9qbYakUWSBUg?e=E7N6p3",
+		"sha256": "7dd6e55a45713a3cfad1691dd807ceec7d4646bc90560c77874dd36191b55778",
+		"slides": 58
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-11-09",
+				"event": "React Global Online Summit 2021"
+			}
+		],
+		"id": "2021-11-09-seven-common-hooks-mistakes",
+		"number": 72,
+		"title": "Seven Common Hooks Mistakes",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtIeeDEoKBSgLYpetA?e=M5eAct",
+		"sha256": "adc029bd5a5e3da06e7d662c79a5e55e6b529c78b013e3aba095a816da535f83",
+		"slides": 30
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-11-09",
+				"event": "A11y Camp 2021"
+			}
+		],
+		"id": "2021-11-09-accessible-accessibility",
+		"number": 73,
+		"title": "Accessible Accessibility",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtIf5SPk3X1MmOiE6w?e=G8Tp6M",
+		"sha256": "ad45eeaf4d36419650a462bddfcb345ef02f64824a0c320d3e41bbaef9fc95a9",
+		"slides": 61
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-11-03",
+				"event": "CascadiaJS 2021"
+			}
+		],
+		"id": "2021-11-03-from-takedown-to-typescript",
+		"number": 74,
+		"title": "From Takedown to TypeScript",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtIT0PxybT6NjP2dWw?e=iNbYbv",
+		"sha256": "3fb745c9de397a86be084d71072a1e9a80225aa90b260645bce4ceaa3875c803",
+		"slides": 51
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-09-10",
+				"event": "TSConf 2021"
+			}
+		],
+		"id": "2021-09-10-converting-a-game-engine-to-typescript",
+		"number": 75,
+		"title": "Converting a Game Engine to TypeScript",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtF61-wTnqOSTx3QNA?e=xzAuNg",
+		"sha256": "e73b2af3b98c501554cabbad0264f2fb9750cf2b9bc2c5624a8996036900bec2",
+		"slides": 54
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-08-21",
+				"event": "Reliable Web Summit 2021"
+			}
+		],
+		"id": "2021-08-21-zero-frontend-crashes-in-production",
+		"number": 76,
+		"title": "\"Zero\" Frontend Crashes in Production",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtF3JLBcCyJSXhJABQ?e=6Xxnht",
+		"sha256": "95837b9eac2a8b4244a9f20d334f18d5d2067b2543cbe1d357532da048af0603",
+		"slides": 46
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-06-28",
+				"event": "WeAreDevelopers World Congress 2021"
+			}
+		],
+		"id": "2021-06-28-microfrontends-at-scale",
+		"number": 77,
+		"title": "Microfrontends at Scale",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtFjcGsr46JzTI5-zQ?e=3cqHXt",
+		"sha256": "276a93a210fe169d0ed60f86e1604f274fb7dfceffa511209ed6ab8bad61a269",
+		"slides": 44
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-05-21",
+				"event": "JSWorld USA 2021"
+			}
+		],
+		"id": "2021-05-21-building-a-design-system-as-a-team",
+		"number": 78,
+		"title": "Building a Design System as a Team",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtFVKVjyXpUGIs9HwA?e=Jvoj9I"
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-05-20",
+				"event": "A11y Bytes 2021"
+			}
+		],
+		"id": "2021-05-20-crafting-an-accessible-design-system",
+		"number": 79,
+		"title": "Crafting an Accessible Design System",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtFXY_iRtSgSUDV8Qg?e=7g1Hro",
+		"sha256": "d5cf0956600bc109e2714939c0624d873c11d8045b2e2d9c5b835f03309968e2",
+		"slides": 27
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-04-27",
+				"event": "React JS Case Study Festival 2021"
+			}
+		],
+		"id": "2021-04-27-breaking-the-codecademy-course-catalog",
+		"number": 80,
+		"title": "Breaking the Codecademy Course Catalog",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtE4dyMr1VL3UtWyjw?e=BwUZvh",
+		"sha256": "7a013b575fc6eb88572e3ade127be19cc96dc95719c75a89f498154c573ce830",
+		"slides": 57
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-04-14",
+				"event": "React Summit 2021"
+			}
+		],
+		"id": "2021-04-14-stories-and-strategies-from-converting-to-typescript",
+		"number": 81,
+		"title": "Stories and Strategies from Converting to TypeScript",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtFPvqJXi-vVGyfgLg?e=Bc7qw5",
+		"sha256": "6ad67b494cd3da742a8feb86a4ec863311018901ce9a1178428fe426fe968e26",
+		"slides": 30
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2021-02-22",
+				"event": "JSWorld 2021"
+			}
+		],
+		"id": "2021-02-22-typescript-for-apis",
+		"number": 82,
+		"title": "TypeScript for APIs",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtEsA38Jz-H_4zp25g?e=wSxDeT",
+		"sha256": "88ebad538f3ab2e400870e9b8e66068bd7ca251eb962ed19c187ea717b1614bf",
+		"slides": 56
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2020-11-20",
+				"event": "JS Poland 2020"
+			}
+		],
+		"id": "2020-11-20-super-strength-eslint",
+		"number": 83,
+		"title": "Super Strength ESLint",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtEiyt1HUAbfhU10Yw?e=erd8j7",
+		"sha256": "1a46e25af05da4eed73a574dfde3d1f1ef444938c5bf36f9e2821211cc811724",
+		"slides": 49
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2020-10-09",
+				"event": "TSConf 2020"
+			}
+		],
+		"id": "2020-10-09-type-system-game-engines",
+		"number": 84,
+		"title": "Type System Game Engines",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvtEWI5Fd_5Va4n3ggg?e=XnppFL",
+		"sha256": "ac35a97c0869abef9ff7d4f02fd7afcdc913a8adf44e81cc70818b0a89acbb0a",
+		"slides": 68
+	},
+	{
+		"category": "Conferences",
+		"events": [
+			{
+				"date": "2020-08-06",
+				"event": "SWM Academy 2020"
+			},
+			{
+				"date": "2019-10-11",
+				"event": "TSConf 2019"
+			}
+		],
+		"id": "2019-10-11-binary-arithmetic-in-the-typescript-type-system",
+		"number": 85,
+		"title": "Binary Arithmetic in the TypeScript Type System",
+		"url": "https://1drv.ms/p/s!AvUc1cvPrJnWvqNRDN6yLPZvYTb8KA?e=aNxTrY",
+		"sha256": "e68b08309885a514d297e2f3b485428944f7d0890d5e2c5a32d2d367dd833667",
+		"slides": 46
+	}
+]

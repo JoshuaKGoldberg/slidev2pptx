@@ -7,7 +7,8 @@
 		"dist",
 		"node_modules",
 		"pnpm-lock.yaml",
-		"src/fixture/fonts/OFL.txt"
+		"src/fixture/fonts/OFL.txt",
+		"qa/corpus/manifest.json"
 	],
 	"words": [
 		"aaff",
@@ -33,6 +34,7 @@
 		"hlink",
 		"IHDR",
 		"ipco",
+		"joshuakgoldberg",
 		"katex",
 		"linkedom",
 		"LOCALAPPDATA",

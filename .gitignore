@@ -3,3 +3,5 @@
 /node_modules
 /src/fixture/node_modules
 ~$*
+/qa/corpus/decks
+/qa/runs
