@@ -412,6 +412,7 @@ function createItemWriter({
 			code,
 			firstRun,
 			lineHeight,
+			linksOnRuns,
 			mixedPitch,
 			outline,
 			rtl,
@@ -420,6 +421,8 @@ function createItemWriter({
 			code: boolean;
 			firstRun: Run;
 			lineHeight: number;
+			/** Whether links stay on their text even without an underline, where extraction lays no hotspots over them: code and rotated text. */
+			linksOnRuns: boolean;
 			/** The measured line pitch of paragraphs that mix font sizes, which PowerPoint spaces exactly. */
 			mixedPitch?: number;
 			/** Whether this is the outlined copy behind a text stroke. */
@@ -437,7 +440,11 @@ function createItemWriter({
 			const exact = lineHeight > 0 && hasMixedSizes(pieces);
 			const multiple = exact ? undefined : lineSpacingOf(lineHeight, baseSize);
 			return pieces.map((run, runIndex) => {
-				const hyperlink = run.href && !run.pad ? { url: run.href } : undefined;
+				// Links that show no underline get transparent hotspots instead, as PowerPoint underlines linked text.
+				const hyperlink =
+					run.href && !run.pad && (run.underline ?? linksOnRuns)
+						? { url: run.href }
+						: undefined;
 				const options: pptxgen.default.TextPropsOptions = {
 					bold: run.bold,
 					breakLine: !last && runIndex === pieces.length - 1,
@@ -562,6 +569,7 @@ function createItemWriter({
 			firstRun,
 			lineHeight:
 				item.kind === "code" ? style.lineHeight : item.style.lineHeight,
+			linksOnRuns: item.kind === "code" || rotation !== 0,
 			mixedPitch,
 			rtl: style.rtl,
 			wrap: !style.nowrap,
@@ -634,6 +642,7 @@ function createItemWriter({
 					{
 						...position(item.box),
 						fill: fillFor(item.fill),
+						hyperlink: item.href ? { url: item.href } : undefined,
 						line: lineFor(item.border),
 						objectName: name,
 						rectRadius: rounded ? inches(radius) : undefined,
@@ -1216,19 +1225,22 @@ function plainText(item: Item) {
 
 /** A readable, unique name for PowerPoint's Selection Pane, cut at a word if it's long. */
 function uniqueName(item: Item, used: Set<string>) {
-	const text = plainText(item);
-	const label = (
-		{
-			box: "Box",
-			code: "Code",
-			ellipse: "Dot",
-			image: "Image",
-			list: "List",
-			polygon: "Shape",
-			raster: "Rendered",
-			text: "Text",
-		} satisfies Record<Item["kind"], string>
-	)[item.kind];
+	const link = item.kind === "box" ? item.href : undefined;
+	const text = link ?? plainText(item);
+	const label = link
+		? "Link"
+		: (
+				{
+					box: "Box",
+					code: "Code",
+					ellipse: "Dot",
+					image: "Image",
+					list: "List",
+					polygon: "Shape",
+					raster: "Rendered",
+					text: "Text",
+				} satisfies Record<Item["kind"], string>
+			)[item.kind];
 	const full = text ? `${label}: ${text}` : label;
 	const cut = [...graphemes.segment(full)]
 		.slice(0, NAME_LENGTH)

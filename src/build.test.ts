@@ -536,8 +536,18 @@ Error on slide 21, click 1: Couldn't render the click: It failed on a click.
 		expect(await slide(6)).toContain('<a:alpha val="2500"/>');
 	});
 
-	it("doesn't underline a link when the browser doesn't", async () => {
-		expect(await slide(6)).toContain('u="none"');
+	it("carries a link the browser doesn't underline on a hotspot over it, not its text", async () => {
+		const xml = await slide(6);
+
+		expect({
+			hotspot:
+				/name="Link: https:\/\/sli\.dev"[^>]*><a:hlinkClick r:id="rId\d+"/.test(
+					xml,
+				),
+			text: xml.includes("<a:t>Slidev docs</a:t>"),
+			textLinks:
+				xml.match(/<a:rPr[^>]*>(?:(?!<\/a:rPr>).)*<a:hlinkClick/gs) ?? [],
+		}).toEqual({ hotspot: true, text: true, textLinks: [] });
 	});
 
 	it("rounds picture corners when an image has a border radius", async () => {

@@ -17,7 +17,12 @@ import {
 	markedItem,
 } from "./extract/lists.ts";
 import { svgItems } from "./extract/svg.ts";
-import { codeItem, inlinePills, textItem } from "./extract/text.ts";
+import {
+	codeItem,
+	inlinePills,
+	linkHotspots,
+	textItem,
+} from "./extract/text.ts";
 import { isBackgroundOnly } from "./layout.ts";
 
 /** Elements with more descendants than this render as one image instead of shapes. */
@@ -149,6 +154,8 @@ export function extractState(layout: Layout, options: ExtractOptions) {
 					textItem(context, element, entry);
 				}
 
+				linkHotspots(context, element, entry);
+
 				walkApart(element);
 				return;
 			}
@@ -160,6 +167,7 @@ export function extractState(layout: Layout, options: ExtractOptions) {
 			for (const loose of context.looseRunsOf(element)) {
 				inlinePills(context, element, loose);
 				textItem(context, element, loose);
+				linkHotspots(context, element, loose);
 			}
 		}
 	};

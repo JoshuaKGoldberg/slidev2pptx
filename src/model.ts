@@ -223,6 +223,8 @@ interface BoxItem extends ItemBase {
 	border?: Stroke;
 	box: Box;
 	fill?: Fill;
+	/** A link the box carries as a transparent hotspot over its text, as PowerPoint underlines any linked text. */
+	href?: string;
 	kind: "box";
 	radius: number;
 	rotation: number;

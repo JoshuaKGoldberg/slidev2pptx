@@ -330,10 +330,61 @@ describe(writePptx, () => {
 		);
 	});
 
-	it("doesn't underline a link when its text isn't underlined", async () => {
+	it("leaves a link off its text when the text isn't underlined, as PowerPoint underlines linked text", async () => {
 		expect(
 			await slideXml([textItem([[run("Link", { href: "https://sli.dev" })]])]),
-		).toContain('<a:rPr lang="en-US" kern="100" sz="2400" u="none" dirty="0">');
+		).not.toContain("<a:hlinkClick");
+	});
+
+	it("keeps a link on its text when the text is underlined", async () => {
+		expect(
+			await slideXml([
+				textItem([
+					[
+						run("Link", {
+							href: "https://sli.dev",
+							underline: { style: "single" },
+						}),
+					],
+				]),
+			]),
+		).toMatch(/<a:rPr [^>]*u="sng"[^>]*>.*<a:hlinkClick r:id="rId\d+"/s);
+	});
+
+	it("keeps a link on its text when it's code, which gets no hotspot", async () => {
+		expect(
+			await slideXml([
+				{
+					baselines: [40],
+					box: { height: 40, width: 400, x: 40, y: 20 },
+					decorative: false,
+					key: "code",
+					kind: "code",
+					paragraphs: [
+						{ runs: [run("link", { font: "Mono", href: "https://sli.dev" })] },
+					],
+					style: { ...style, nowrap: true },
+				},
+			]),
+		).toContain("<a:hlinkClick");
+	});
+
+	it("links a hotspot box to its target", async () => {
+		const zip = await writeItems([
+			boxItem({
+				fill: { color: "FFFFFF", transparency: 100 },
+				href: "https://sli.dev",
+			}),
+		]);
+
+		expect({
+			rels: (await part(zip, "ppt/slides/_rels/slide1.xml.rels"))?.match(
+				/Target="https:\/\/sli\.dev"/g,
+			),
+			shape: (await part(zip, "ppt/slides/slide1.xml"))?.match(
+				/<p:cNvPr [^>]*><a:hlinkClick r:id="rId\d+"/g,
+			)?.length,
+		}).toEqual({ rels: ['Target="https://sli.dev"'], shape: 1 });
 	});
 
 	it("underlines a run when it's underlined", async () => {
@@ -800,9 +851,13 @@ describe(writePptx, () => {
 
 	it("points a link's runs at one relationship when a line break splits it", async () => {
 		const href = "https://sli.dev";
+		const underline = { style: "single" } as const;
 		const zip = await writeItems([
 			textItem([
-				[run("first", { href }), run("second", { href, lineBreak: "forced" })],
+				[
+					run("first", { href, underline }),
+					run("second", { href, lineBreak: "forced", underline }),
+				],
 			]),
 		]);
 
@@ -878,10 +933,18 @@ describe(writePptx, () => {
 	it("refers runs to the theme's fonts and colors when they're the theme's", async () => {
 		expect(
 			await slideXml([
-				textItem([[run("Themed"), run("Linked", { href: "https://sli.dev" })]]),
+				textItem([
+					[
+						run("Themed"),
+						run("Linked", {
+							href: "https://sli.dev",
+							underline: { style: "single" },
+						}),
+					],
+				]),
 			]),
 		).toContain(
-			'<a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:rPr><a:t>Themed</a:t></a:r><a:r><a:rPr lang="en-US" kern="100" sz="2400" u="none" dirty="0"><a:solidFill><a:schemeClr val="hlink"/></a:solidFill>',
+			'<a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:rPr><a:t>Themed</a:t></a:r><a:r><a:rPr lang="en-US" kern="100" sz="2400" u="sng" dirty="0"><a:solidFill><a:schemeClr val="hlink"/></a:solidFill>',
 		);
 	});
 

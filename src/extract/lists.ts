@@ -15,7 +15,7 @@ import {
 	runsToParagraph,
 	runStyle,
 } from "./runs.ts";
-import { inlinePills } from "./text.ts";
+import { inlinePills, linkHotspots } from "./text.ts";
 
 /** A piece of a list item: some of its text, or a nested list. */
 type ItemBlock =
@@ -101,6 +101,7 @@ export function listItem(
 		const x = content.x + left - columns[0].left;
 		const box =
 			columns.length > 1 ? { ...content, width: right - x, x } : content;
+		const links: { element: Element; entry: TextRuns }[] = [];
 		const converted = listParagraphs(
 			context,
 			list,
@@ -108,6 +109,7 @@ export function listItem(
 			box.x,
 			opacity,
 			rasterized,
+			links,
 			items,
 		);
 		const paragraphs = converted.map(({ paragraph }) => paragraph);
@@ -135,6 +137,10 @@ export function listItem(
 					: undefined,
 			},
 		});
+
+		for (const { element, entry } of links) {
+			linkHotspots(context, element, entry);
+		}
 	}
 
 	return rasterized;
@@ -296,6 +302,8 @@ function listParagraphs(
 	textLeft: number,
 	opacity: number,
 	rasterized: Element[],
+	/** Collects each item's text, to lay link hotspots over once the list is placed. */
+	links: { element: Element; entry: TextRuns }[],
 	shown = itemsOf(list),
 ): { paragraph: ListParagraph; right: number; wrapped: boolean }[] {
 	const items = itemsOf(list).filter((item) => context.boxOf(item));
@@ -323,10 +331,12 @@ function listParagraphs(
 					textLeft,
 					opacity,
 					rasterized,
+					links,
 				);
 			}
 
 			inlinePills(context, block.entry.element ?? item, block.entry);
+			links.push({ element: block.entry.element ?? item, entry: block.entry });
 			const { baselines, left, right, runs, wrapRight } = runsToParagraph(
 				context,
 				block.entry,

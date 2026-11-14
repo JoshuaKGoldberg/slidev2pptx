@@ -21,6 +21,9 @@ import {
 	startsLine,
 } from "./runs.ts";
 
+/** Link targets PowerPoint can open. */
+const LINK_PROTOCOL = /^(?:https?|mailto):/i;
+
 /** A code block's lines, in order: highlighted lines, twoslash error lines, and twoslash query popups, which show below their token's line. */
 const CODE_LINES = ".line, .twoslash-meta-line, .twoslash-popup-container";
 
@@ -131,33 +134,7 @@ export function inlinePills(
 			continue;
 		}
 
-		const own = entry.runs.filter((run) => {
-			const owner = context.byId.get(run.owner);
-			return owner !== undefined && child.contains(owner);
-		});
-		const lines: {
-			bottom: number;
-			left: number;
-			right: number;
-			top: number;
-		}[] = [];
-		for (const [index, run] of own.entries()) {
-			let line = lines.at(-1);
-			if (!line || startsLine(own[index - 1], run)) {
-				line = {
-					bottom: -Infinity,
-					left: Infinity,
-					right: -Infinity,
-					top: Infinity,
-				};
-				lines.push(line);
-			}
-
-			line.left = Math.min(line.left, run.x);
-			line.right = Math.max(line.right, run.x + run.width);
-			line.top = Math.min(line.top, run.y);
-			line.bottom = Math.max(line.bottom, run.y + run.height);
-		}
+		const lines = lineBoundsOf(context, entry, child);
 
 		const insets = context.contentInsets(child);
 		const label = context.labelOf(child);
@@ -185,6 +162,56 @@ export function inlinePills(
 					),
 				}),
 			);
+		}
+	}
+}
+
+/**
+ * Transparent hotspots over links that show no underline, one per line, which
+ * carry the link instead of its text: PowerPoint underlines any linked text.
+ */
+export function linkHotspots(
+	context: ExtractContext,
+	element: Element,
+	entry: TextRuns,
+) {
+	if (geometryOf(entry.box).rotation) {
+		return;
+	}
+
+	const { origin, scale } = runFrame(context, entry);
+	const outer = element.closest("a[href]");
+	for (const link of new Set([
+		...(outer ? [outer] : []),
+		...element.querySelectorAll("a[href]"),
+	])) {
+		const href = link.getAttribute("href") ?? "";
+		const owner = entry.runs
+			.map((run) => context.byId.get(run.owner))
+			.find((owner) => owner && link.contains(owner));
+		if (
+			!owner ||
+			!LINK_PROTOCOL.test(href) ||
+			runStyle(context, owner, 1).underline
+		) {
+			continue;
+		}
+
+		for (const line of lineBoundsOf(context, entry, link)) {
+			context.push(link, {
+				box: {
+					height: (line.bottom - line.top) * scale,
+					width: (line.right - line.left) * scale,
+					x: origin.x + line.left * scale,
+					y: origin.y + line.top * scale,
+				},
+				fill: { color: "FFFFFF", transparency: 100 },
+				href,
+				key: `${pathOf(link)}#link:${String(Math.round(line.left))}`,
+				kind: "box",
+				radius: 0,
+				rotation: 0,
+			});
 		}
 	}
 }
@@ -227,4 +254,37 @@ export function textItem(
 			wrapWidth: wrapRight === undefined ? undefined : wrapRight - box.x,
 		},
 	});
+}
+
+/** The bounds of an element's laid-out runs in a text entry, one per line they span, in the entry's run space. */
+function lineBoundsOf(
+	context: ExtractContext,
+	entry: TextRuns,
+	element: Element,
+) {
+	const own = entry.runs.filter((run) => {
+		const owner = context.byId.get(run.owner);
+		return owner !== undefined && element.contains(owner);
+	});
+	const lines: { bottom: number; left: number; right: number; top: number }[] =
+		[];
+	for (const [index, run] of own.entries()) {
+		let line = lines.at(-1);
+		if (!line || startsLine(own[index - 1], run)) {
+			line = {
+				bottom: -Infinity,
+				left: Infinity,
+				right: -Infinity,
+				top: Infinity,
+			};
+			lines.push(line);
+		}
+
+		line.left = Math.min(line.left, run.x);
+		line.right = Math.max(line.right, run.x + run.width);
+		line.top = Math.min(line.top, run.y);
+		line.bottom = Math.max(line.bottom, run.y + run.height);
+	}
+
+	return lines;
 }
