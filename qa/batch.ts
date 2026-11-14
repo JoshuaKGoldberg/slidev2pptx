@@ -41,13 +41,18 @@ async function runDeck(id: string) {
 	const log = path.join(runs, `${id}.log`);
 	for (let attempt = 1; attempt <= 2; attempt += 1) {
 		try {
-			const { stdout } = await run(
+			const started = Date.now();
+			const { stderr, stdout } = await run(
 				process.execPath,
 				[path.join(import.meta.dirname, "run.ts"), id, "--from", values.from],
 				{ maxBuffer: 64 * 1024 * 1024 },
 			);
-			await fs.writeFile(log, stdout);
-			console.log(stdout.trim().split("\n").at(-1));
+			// stderr has the PowerPoint watchdog's notes, which explain slow runs.
+			await fs.writeFile(log, `${stdout}\n${stderr}`);
+			const minutes = Math.round((Date.now() - started) / 60_000);
+			console.log(
+				`${stdout.trim().split("\n").at(-1) ?? id} (${String(minutes)} min)`,
+			);
 			return;
 		} catch (error) {
 			const { stderr = "", stdout = "" } = error as {
