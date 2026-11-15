@@ -344,6 +344,30 @@ describe(writePptx, () => {
 	);
 
 	it.each([
+		// Among text, the emoji gets a run of its own, offset 10% down and written 1.5x as large, as PowerPoint draws offset runs at 2/3.
+		[[run("Hi 😀 there")], ["Hi |2400|", "😀|3600|-10000", " there|2400|"]],
+		// A line of only emoji keeps its place, as PowerPoint would size the line by the larger size.
+		[
+			[run("😀"), run("Text", { lineBreak: "forced" })],
+			["😀|2400|", "Text|2400|"],
+		],
+		// Text that's all emoji is lowered as a box instead.
+		[[run("😀 😀")], ["😀 😀|2400|"]],
+	])(
+		"lowers emoji among text by an offset from the baseline: %j",
+		async (runs, written) => {
+			const xml = (await slideXml([textItem([runs])])) ?? "";
+
+			expect(
+				[...xml.matchAll(/<a:r><a:rPr([^>]*)>.*?<a:t>([^<]*)<\/a:t>/g)].map(
+					([, attributes, text]) =>
+						`${text}|${/ sz="(\d+)"/.exec(attributes)?.[1] ?? ""}|${/ baseline="(-?\d+)"/.exec(attributes)?.[1] ?? ""}`,
+				),
+			).toEqual(written);
+		},
+	);
+
+	it.each([
 		// 0.12em, only PowerPoint's rise, at 24px.
 		[90, { x: -2.88, y: 0 }],
 		[180, { x: 0, y: -2.88 }],

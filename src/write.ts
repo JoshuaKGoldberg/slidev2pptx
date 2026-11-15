@@ -449,6 +449,7 @@ function createItemWriter({
 			firstRun,
 			lineHeight,
 			linksOnRuns,
+			lowersEmoji,
 			mixedPitch,
 			outline,
 			rtl,
@@ -457,6 +458,8 @@ function createItemWriter({
 			code: boolean;
 			firstRun: Run;
 			lineHeight: number;
+			/** Whether to lower emoji by offsetting them from the baseline, where the box isn't lowered for them instead. */
+			lowersEmoji: boolean;
 			/** Whether links stay on their text even without an underline, where extraction lays no hotspots over them: code and rotated text. */
 			linksOnRuns: boolean;
 			/** The measured line pitch of paragraphs that mix font sizes, which PowerPoint spaces exactly. */
@@ -469,8 +472,11 @@ function createItemWriter({
 	) =>
 		paragraphs.flatMap((paragraph, paragraphIndex) => {
 			const last = paragraphIndex === paragraphs.length - 1;
-			const pieces = paragraph.runs.length
-				? mergeRuns(paragraph.runs, wrap)
+			const pieces: LoweredRun[] = paragraph.runs.length
+				? mergeRuns(
+						lowersEmoji ? withLoweredEmoji(paragraph.runs) : paragraph.runs,
+						wrap,
+					)
 				: [blankRun(firstRun)];
 			if (!wrap) {
 				// Browsers hang the space a line wraps at outside its alignment, but PowerPoint aligns a space before a written break with its line.
@@ -491,7 +497,11 @@ function createItemWriter({
 					run.href && !run.pad && (run.underline ?? linksOnRuns)
 						? { url: run.href }
 						: undefined;
+				const lowered = run.lowered && !run.script;
 				const options: pptxgen.default.TextPropsOptions = {
+					baseline: lowered
+						? (-EMOJI_OFFSET * 100000) / PPTXGEN_BASELINE_UNIT
+						: undefined,
 					bold: run.bold,
 					breakLine: !last && runIndex === pieces.length - 1,
 					bullet: paragraph.bullet,
@@ -501,7 +511,13 @@ function createItemWriter({
 					color: run.gradient ? gradients.sentinel(run.gradient) : run.color,
 					fontFace: run.font,
 					fontSize: fontSizeOf(
-						points(run.script ? SCRIPT_SCALE * baseSize : run.size),
+						points(
+							run.script
+								? SCRIPT_SCALE * baseSize
+								: lowered
+									? OFFSET_RUN_GROWTH * run.size
+									: run.size,
+						),
 					),
 					hyperlink,
 					indentLevel: paragraph.indentLevel,
@@ -587,11 +603,9 @@ function createItemWriter({
 			fonts,
 		);
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
-		// PowerPoint draws emoji higher on their baseline than browsers, which it can only be lowered by where they're all there is.
-		const drop =
-			item.kind === "text" && paragraphs.every(isEmojiOnly)
-				? EMOJI_GLYPH_RISE * firstRun.size
-				: 0;
+		// PowerPoint draws emoji higher on their baseline than browsers: text that's all emoji is lowered as a box, and emoji among text each by an offset.
+		const emojiOnly = item.kind === "text" && paragraphs.every(isEmojiOnly);
+		const drop = emojiOnly ? EMOJI_GLYPH_RISE * firstRun.size : 0;
 		// PowerPoint turns a box about its center, so moving the box moves its text, down along the box's own turn.
 		const turn = (rotation * Math.PI) / 180;
 		const box = {
@@ -621,6 +635,7 @@ function createItemWriter({
 			lineHeight:
 				item.kind === "code" ? style.lineHeight : item.style.lineHeight,
 			linksOnRuns: item.kind === "code" || rotation !== 0,
+			lowersEmoji: !emojiOnly,
 			mixedPitch,
 			rtl: style.rtl,
 			wrap: !style.nowrap,
@@ -992,6 +1007,15 @@ const isEmojiOnly = ({ runs }: Paragraph) =>
 
 /** How much higher PowerPoint (for Mac) draws an emoji than a browser does on the same baseline, in em (measured). */
 const EMOJI_GLYPH_RISE = 0.12;
+
+/** How far below the baseline to offset an emoji among text for PowerPoint to draw it where a browser does, as a fraction of its size (measured). */
+const EMOJI_OFFSET = 0.1;
+
+/** PowerPoint draws a run offset from the baseline at about 2/3 of its size, so a run offset at its own size is written this much larger. */
+const OFFSET_RUN_GROWTH = 1.5;
+
+/** pptxgenjs writes a run's baseline offset, in 1000ths of a percent, as 50 times the number it's given. */
+const PPTXGEN_BASELINE_UNIT = 50;
 
 /**
  * How far below a line's top, in px, PowerPoint draws its first baseline: up
@@ -1367,6 +1391,59 @@ const spacingPercent = (multiple: number | undefined) =>
 
 const breaksBefore = (run: Run, wrap: boolean) =>
 	run.lineBreak === "forced" || (!wrap && run.lineBreak === "wrap");
+
+/** A run that may be an emoji lowered by an offset from its line's baseline. */
+type LoweredRun = Run & { lowered?: boolean };
+
+/**
+ * Splits out the emoji among text into runs of their own to lower: PowerPoint
+ * draws emoji among text higher than browsers. A line of only emoji keeps its
+ * own, as PowerPoint would size that line by the larger size they're written
+ * at to offset them.
+ */
+function withLoweredEmoji(runs: Run[]): LoweredRun[] {
+	const lines: Run[][] = [];
+	for (const run of runs) {
+		if (run.lineBreak || !lines.length) {
+			lines.push([]);
+		}
+
+		lines[lines.length - 1].push(run);
+	}
+
+	return lines.flatMap((line) => {
+		const text = line.map((run) => run.text).join("");
+		const hasText = [...graphemes.segment(text)].some(
+			({ segment }) => /\S/.test(segment) && !isEmojiText(segment),
+		);
+		return hasText ? line.flatMap(splitEmoji) : line;
+	});
+}
+
+/** Splits a run into its emoji, to lower, and the text between them, the break before it going with its first part. */
+function splitEmoji(run: Run): LoweredRun[] {
+	if (run.pad) {
+		return [run];
+	}
+
+	const parts: { emoji: boolean; text: string }[] = [];
+	for (const { segment } of graphemes.segment(run.text)) {
+		const emoji = isEmojiText(segment);
+		const last = parts.at(-1);
+		if (last?.emoji === emoji) {
+			last.text += segment;
+		} else {
+			parts.push({ emoji, text: segment });
+		}
+	}
+
+	return parts.map(({ emoji, text }, index) => ({
+		...run,
+		lineBreak: index ? undefined : run.lineBreak,
+		lowered: emoji || undefined,
+		text,
+	}));
+}
 
 /** Joins neighboring runs that look alike (as takumi splits text per line), or that differ only where whitespace between them can't show it, into one run to edit, except where a line break is kept. */
 function mergeRuns(runs: Run[], wrap: boolean) {
