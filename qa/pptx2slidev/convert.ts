@@ -10,7 +10,7 @@ import JSZip from "jszip";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { PptxRenderer } from "pptx-svg";
+import { emfToSvg, PptxRenderer, wmfToSvg } from "pptx-svg";
 
 import type { Visibility } from "./timing.ts";
 
@@ -117,7 +117,9 @@ export async function convertDeck(input: string, output: string) {
 					return existing;
 				}
 
-				const name = `/media/${path.basename(target)}`;
+				// Vite won't serve Windows metafiles, so they become SVG.
+				const metafile = /\.(?:emf|wmf)$/i.exec(target)?.[0].toLowerCase();
+				const name = `/media/${path.basename(target)}${metafile ? ".svg" : ""}`;
 				copied.set(target, name);
 				const file = zip.file(target);
 				if (!file) {
@@ -128,7 +130,13 @@ export async function convertDeck(input: string, output: string) {
 					file
 						.async("nodebuffer")
 						.then((buffer) =>
-							fs.writeFile(path.join(output, "public", name), buffer),
+							fs.writeFile(
+								path.join(output, "public", name),
+								metafile
+									? (metafile === ".wmf" ? wmfToSvg : emfToSvg)(buffer) ||
+											`<svg xmlns="http://www.w3.org/2000/svg"/>`
+									: buffer,
+							),
 						),
 				);
 				return name;
