@@ -30,6 +30,8 @@ export interface FontBook {
 
 interface Face {
 	collectionIndex?: number;
+	/** Whether an `@font-face` rule declares the face, so its weight is the declared one rather than its file's. */
+	declared?: boolean;
 	generic?: Generic;
 	italic: boolean;
 	load: () => Promise<Buffer | undefined>;
@@ -250,7 +252,14 @@ export function createFontBook({
 		const face = family && pickFace(family, weight, italic, loadedFaces.get);
 		const [first = ""] = splitStack(stack);
 		return face
-			? { ...powerPointName(face.font, weight), face }
+			? {
+					...powerPointName(
+						face.font,
+						weight,
+						face.face.declared ? face.face.weight : undefined,
+					),
+					face,
+				}
 			: {
 					bold: weight >= 600,
 					font: (isGeneric(first) ? GENERICS[first]?.[0] : undefined) ?? first,
@@ -427,6 +436,7 @@ function fontFace(
 		)
 		.filter((weight) => Number.isFinite(weight));
 	return {
+		declared: true,
 		italic: /italic|oblique/i.test(value("font-style") ?? ""),
 		async load() {
 			for (const source of sources) {
@@ -590,7 +600,17 @@ function pickFace(
 	return best && loaded(best);
 }
 
-function powerPointName(font: fontkit.Font, weight: number): ResolvedFont {
+/**
+ * The PowerPoint font for a face at a weight. A static face that's lighter
+ * than a bold weight is emboldened, as browsers synthesize bold for it:
+ * lighter by its declared weight when an `@font-face` declares one, as Blink
+ * judges it, or else by its file's weight class.
+ */
+function powerPointName(
+	font: fontkit.Font,
+	weight: number,
+	declaredWeight?: [number, number],
+): ResolvedFont {
 	const axis = font.variationAxes.wght;
 	if (axis) {
 		const clamped = Math.min(axis.max, Math.max(axis.min, weight));
@@ -617,11 +637,12 @@ function powerPointName(font: fontkit.Font, weight: number): ResolvedFont {
 		};
 	}
 
+	const faceWeight =
+		declaredWeight?.[1] ?? windowsMetricsOf(font)?.usWeightClass ?? 400;
 	return {
 		bold:
 			weight >= 600 &&
-			(/^bold(?: italic)?$/i.test(font.subfamilyName) ||
-				(windowsMetricsOf(font)?.usWeightClass ?? 400) < 600),
+			(/^bold(?: italic)?$/i.test(font.subfamilyName) || faceWeight < 600),
 		font: font.familyName,
 	};
 }

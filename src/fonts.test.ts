@@ -73,6 +73,7 @@ const files: Partial<Record<string, Buffer>> = {
 	"/heavy.ttf": staticFont("Heavy Test Black", "Regular", 900),
 	"/league-spartan.woff2": leagueSpartan,
 	"/plain.ttf": staticFont("Plain Test", "Regular", 400),
+	"/semi.ttf": staticFont("Semi Test", "Regular", 590),
 	"https://api.fonts.coollabs.io/fonts?family=Web+Test:ital,wght@0,400;1,400&display=swap":
 		Buffer.from(
 			`@font-face { font-family: "Web Test"; src: url(/fira-code.woff2) }`,
@@ -112,7 +113,9 @@ async function createBook(stacks = [stack]) {
 			@font-face { font-family: Ranged; src: url(/league-spartan.woff2) }
 			@font-face { font-family: Static; font-weight: 700; src: url(/bold.ttf) }
 			@font-face { font-family: Static; font-weight: 900; src: url(/heavy.ttf) }
-			@font-face { font-family: Plain; font-weight: 400; src: url(/plain.ttf) }`,
+			@font-face { font-family: Plain; font-weight: 400; src: url(/plain.ttf) }
+			@font-face { font-family: Semi; font-weight: 600; src: url(/semi.ttf) }
+			@font-face { font-family: SemiLight; font-weight: 400; src: url(/semi.ttf) }`,
 		],
 	});
 	const fonts = await book.load(stacks);
@@ -268,6 +271,20 @@ describe(createFontBook, () => {
 			font: "Plain Test",
 		});
 	});
+
+	it.each([
+		["Semi", false],
+		["SemiLight", true],
+	])(
+		"emboldens a face at 700 by the weight %s declares, as browsers do, not its file's weight",
+		async (family, bold) => {
+			const { book } = await createBook([family]);
+			expect(book.resolve(family, 700, false)).toEqual({
+				bold,
+				font: "Semi Test",
+			});
+		},
+	);
 
 	it("names a generic family's first font when no font in the stack is available", async () => {
 		const { book } = await createBook();
