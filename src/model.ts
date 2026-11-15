@@ -101,6 +101,8 @@ export interface ListParagraph extends Paragraph {
 	indent: number;
 	/** How deeply the paragraph's list nests, 0 for the outermost. */
 	level: number;
+	/** px between its lines: its item's line height, which can differ from its list's. */
+	lineHeight?: number;
 	/** The item's CSS list-style-type, like "disc", "decimal", or a quoted string. */
 	marker: string;
 	/** The font and px size its marker shows in: its ::marker's, which inherits the item's rather than its first run's. */

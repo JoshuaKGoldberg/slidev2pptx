@@ -752,6 +752,21 @@ describe(writePptx, () => {
 		).toContain('marL="609600" indent="-609600"');
 	});
 
+	it("spaces each list item by its own line height", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("Loose"),
+				listParagraph("Single", { lineHeight: 28.8 }),
+			]),
+		]);
+
+		expect(
+			[...(xml ?? "").matchAll(/<a:spcPct val="(\d+)"\/>/g)].map(
+				([, value]) => value,
+			),
+		).toEqual(["125000", "100000"]);
+	});
+
 	it("nests a paragraph a level deeper when its list is nested", async () => {
 		expect(
 			await slideXml([

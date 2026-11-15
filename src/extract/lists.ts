@@ -331,6 +331,7 @@ function listParagraphs(
 		const style = context.styleOf(item);
 		const shared = {
 			level,
+			lineHeight: lineHeightOf(style) * context.scaleAt(item),
 			marker: style["list-style-type"],
 			markerFace: markerFaceOf(context, item),
 			number: numbers[index],

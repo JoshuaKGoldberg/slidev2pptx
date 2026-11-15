@@ -69,6 +69,8 @@ type TextParagraph = Paragraph & {
 	/** For list items: the marker, and the hanging indent it sits in. */
 	bullet?: pptxgen.default.TextPropsOptions["bullet"];
 	indentLevel?: number;
+	/** px between its lines, where it differs from its item's. */
+	lineHeight?: number;
 	/** pt */
 	spaceAfter?: number;
 };
@@ -441,8 +443,9 @@ function createItemWriter({
 				? mergeRuns(paragraph.runs, wrap)
 				: [blankRun(firstRun)];
 			const baseSize = baseSizeOf(pieces);
-			const exact = lineHeight > 0 && hasMixedSizes(pieces);
-			const multiple = exact ? undefined : lineSpacingOf(lineHeight, baseSize);
+			const pitch = paragraph.lineHeight ?? lineHeight;
+			const exact = pitch > 0 && hasMixedSizes(pieces);
+			const multiple = exact ? undefined : lineSpacingOf(pitch, baseSize);
 			return pieces.map((run, runIndex) => {
 				// Links that show no underline get transparent hotspots instead, as PowerPoint underlines linked text.
 				const hyperlink =
@@ -466,7 +469,7 @@ function createItemWriter({
 					italic: run.italic,
 					lang: run.upper ? UPPERCASE_LANG : undefined,
 					lineSpacing: exact
-						? Math.round(points(mixedPitch ?? lineHeight) * 100) / 100
+						? Math.round(points(mixedPitch ?? pitch) * 100) / 100
 						: undefined,
 					lineSpacingMultiple: multiple,
 					outline:
@@ -834,8 +837,12 @@ function spacedListParagraphs(
 			return paragraph;
 		}
 
+		// PowerPoint spaces a paragraph's first line by its own line spacing.
 		exact += points(
-			Math.max(0, next.baselines[0] - (last + item.style.lineHeight)),
+			Math.max(
+				0,
+				next.baselines[0] - (last + (next.lineHeight ?? item.style.lineHeight)),
+			),
 		);
 		const spaceAfter = Math.round(exact) - written;
 		written += spaceAfter;
@@ -878,6 +885,7 @@ function listParagraphs(
 							}
 						: { characterCode: marker.code, indent },
 			indentLevel: level || undefined,
+			lineHeight: paragraph.lineHeight,
 			marker: marker?.kind,
 			markerFace: marker && faceToWrite(marker, paragraph),
 			runs: visible
