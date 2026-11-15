@@ -1,8 +1,8 @@
 /coverage
 /dist
 /node_modules
+/qa/corpus/decks
+/qa/runs
 /src/fixture/*.pptx
 /src/fixture/node_modules
 ~$*
-/qa/corpus/decks
-/qa/runs

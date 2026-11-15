@@ -27,9 +27,9 @@ pnpm build --watch
 
 ### Built App Debugging
 
-This repository includes a [VS Code launch configuration](https://code.visualstudio.com/docs/editor/debugging) for debugging the CLI.
-Add a breakpoint to your code, then run _Debug Program_ from the VS Code Debug panel (or press F5).
-VS Code will automatically run the `build` task, then run `bin/index.js` on the fixture deck in `src/fixture/`, writing the gitignored `src/fixture/debug.pptx`.
+This repository includes a [VS Code launch configuration](https://code.visualstudio.com/docs/editor/debugging) for debugging.
+To debug a `bin` app, add a breakpoint to your code, then run _Debug Program_ from the VS Code Debug panel (or press F5).
+VS Code will automatically run the `build` task in the background before running `bin/index.js`.
 
 ## Formatting
 
@@ -88,7 +88,7 @@ To launch it, open a test file, then run _Debug Current Test File_ from the VS C
 
 You should be able to see suggestions from [TypeScript](https://typescriptlang.org) in your editor for all open files.
 
-However, it can be useful to run the TypeScript command-line (`tsc`) to type check all files in `src/` and `qa/`:
+However, it can be useful to run the TypeScript command-line (`tsc`) to type check all files in `src/`:
 
 ```shell
 pnpm tsc
@@ -104,3 +104,14 @@ pnpm tsc --watch
 
 [`qa/`](../qa/README.md) holds a harness that round-trips real PowerPoint decks through Slidev and slidev2pptx, then compares renderings.
 It needs macOS and Microsoft PowerPoint, so it isn't part of CI.
+
+## Releasing
+
+The [release workflow](./workflows/release.yaml) runs only when started by hand until npm publishing is set up.
+To set it up:
+
+1. Add an `ACCESS_TOKEN` repository secret with a GitHub token that can push to `main`
+2. Publish the package to npm once by hand, so it exists
+3. Add this repository's `release.yaml` workflow as a GitHub Actions trusted publisher in the package's settings on npmjs.com
+
+Then restore the workflow's `push` trigger on `main`.

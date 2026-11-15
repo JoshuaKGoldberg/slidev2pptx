@@ -23,8 +23,8 @@
 	},
 	"bin": "bin/index.js",
 	"files": [
-		"bin/",
-		"dist/"
+		"dist/",
+		"bin/"
 	],
 	"scripts": {
 		"build": "tsdown",
@@ -71,7 +71,6 @@
 		"console-fail-test": "0.10.0",
 		"cspell": "10.4.0",
 		"eslint": "10.14.0",
-		"eslint-config-prettier": "10.1.8",
 		"eslint-plugin-jsdoc": "65.4.0",
 		"eslint-plugin-jsonc": "3.4.1",
 		"eslint-plugin-markdown-links": "0.9.1",
