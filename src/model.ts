@@ -86,8 +86,6 @@ export type Item =
 
 export interface ListItem extends ItemBase {
 	box: Box;
-	/** The markers' color, when ::marker gives them one other than the text's. */
-	bulletColor?: string;
 	kind: "list";
 	/** Each list item's paragraphs, then its nested lists' paragraphs. */
 	paragraphs: ListParagraph[];
@@ -106,6 +104,8 @@ export interface ListParagraph extends Paragraph {
 	lineHeight?: number;
 	/** The item's CSS list-style-type, like "disc", "decimal", or a quoted string. */
 	marker: string;
+	/** The color its marker shows in, as uppercase hex: its ::marker's, which inherits the item's rather than its first run's. */
+	markerColor?: string;
 	/** The font and px size its marker shows in: its ::marker's, which inherits the item's rather than its first run's. */
 	markerFace?: MarkerFace;
 	/** The item's ordinal, for numbered markers. */

@@ -567,7 +567,6 @@ function createItemWriter({
 		const list =
 			item.kind === "list"
 				? {
-						color: item.bulletColor,
 						paragraphs: listParagraphs(
 							item,
 							visibleParagraphs,
@@ -655,7 +654,7 @@ function createItemWriter({
 
 		if (list) {
 			patch.lists.push({
-				color: list.color,
+				colors: list.paragraphs.map(({ markerColor }) => markerColor),
 				faces: list.paragraphs.map(({ markerFace }) =>
 					markerFace
 						? {
@@ -936,7 +935,11 @@ function listParagraphs(
 	markerGap: number,
 	points: Units["points"],
 	fonts: FontBook,
-): (TextParagraph & { marker?: Marker["kind"]; markerFace?: MarkerFace })[] {
+): (TextParagraph & {
+	marker?: Marker["kind"];
+	markerColor?: string;
+	markerFace?: MarkerFace;
+})[] {
 	const numbering = createNumbering();
 	return spacedListParagraphs(item, points, fonts).map((paragraph, index) => {
 		const { level, number } = paragraph;
@@ -967,6 +970,7 @@ function listParagraphs(
 			indentLevel: level || undefined,
 			lineHeight: paragraph.lineHeight,
 			marker: marker?.kind,
+			markerColor: marker && colorToWrite(paragraph),
 			markerFace: marker && faceToWrite(marker, paragraph),
 			runs: visible
 				? paragraph.runs
@@ -1138,6 +1142,15 @@ export function markerFor(listStyle: string): Marker | undefined {
  * its first run's, which PowerPoint would otherwise draw it in. Keyword markers
  * are always drawn in Arial, so only their size matters.
  */
+/** The marker color a paragraph needs written, which PowerPoint otherwise takes from its first run: when that's a spacer, see-through, or another color. */
+function colorToWrite({ markerColor, runs }: ListParagraph) {
+	const first = runs.at(0);
+	return first &&
+		(first.pad || first.transparency > 0 || first.color !== markerColor)
+		? markerColor
+		: undefined;
+}
+
 function faceToWrite(marker: Marker, { markerFace, runs }: ListParagraph) {
 	const first = runs.at(0);
 	return markerFace &&
@@ -1528,7 +1541,7 @@ function colorsOf(deck: Deck) {
 	const colors = new Set<string>();
 	JSON.stringify(deck.slides, (key, value: unknown) => {
 		if (
-			(key === "color" || key === "bulletColor") &&
+			(key === "color" || key === "markerColor") &&
 			typeof value === "string"
 		) {
 			colors.add(value);
@@ -1735,7 +1748,11 @@ function accentsOf(items: Item[], excluded: Set<string>) {
 			? solid(item.fill)
 			: []),
 		...("border" in item ? solid(item.border) : []),
-		...(item.kind === "list" && item.bulletColor ? [item.bulletColor] : []),
+		...(item.kind === "list"
+			? item.paragraphs.flatMap(({ markerColor, runs }) =>
+					markerColor && markerColor !== runs.at(0)?.color ? [markerColor] : [],
+				)
+			: []),
 		...("paragraphs" in item
 			? new Set(
 					item.paragraphs.flatMap(({ runs }) =>

@@ -119,7 +119,6 @@ export function listItem(
 
 		context.push(list, {
 			box,
-			bulletColor: bulletColorOf(context, first, paragraphs),
 			key: `${pathOf(list)}#list${index ? `-${String(index)}` : ""}`,
 			kind: "list",
 			paragraphs,
@@ -173,6 +172,7 @@ export function markedItem(
 			indent: left - box.x,
 			level: 0,
 			marker: style["list-style-type"],
+			markerColor: markerColorOf(context, item),
 			markerFace: markerFaceOf(context, item),
 			number: ordinalsOf(list, items)[items.indexOf(item)],
 			runs,
@@ -185,7 +185,6 @@ export function markedItem(
 
 	context.push(item, {
 		box,
-		bulletColor: bulletColorOf(context, item, paragraphs),
 		key: `${pathOf(item)}#list`,
 		kind: "list",
 		paragraphs,
@@ -242,24 +241,10 @@ function columnsOf(context: ExtractContext, list: Element) {
 	return columns;
 }
 
-/** The marker color a list needs written, which PowerPoint otherwise takes from each paragraph's first run: when a marked paragraph's first run is a spacer, or shows unlike the marker. */
-function bulletColorOf(
-	context: ExtractContext,
-	item: Element | undefined,
-	paragraphs: ListParagraph[],
-) {
-	const marker = item && context.markers.get(item);
-	const color = marker && parseColor(marker.color)?.hex;
-	return paragraphs.some(({ bullet, runs }) => {
-		const first = runs.at(0);
-		return (
-			bullet &&
-			first !== undefined &&
-			(first.pad || first.transparency > 0 || first.color !== color)
-		);
-	})
-		? color
-		: undefined;
+/** The color a list item's marker shows in, from its ::marker's style (which inherits the item's). */
+function markerColorOf(context: ExtractContext, item: Element) {
+	const style = context.markers.get(item) ?? context.styleOf(item);
+	return parseColor(style.color)?.hex;
 }
 
 /** The font and size a list item's marker shows in, from its ::marker's style (which inherits the item's). */
@@ -333,6 +318,7 @@ function listParagraphs(
 			level,
 			lineHeight: lineHeightOf(style) * context.scaleAt(item),
 			marker: style["list-style-type"],
+			markerColor: markerColorOf(context, item),
 			markerFace: markerFaceOf(context, item),
 			number: numbers[index],
 			visible: context.opacityOf(item) >= MIN_OPACITY,

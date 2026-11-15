@@ -22,8 +22,8 @@ export interface SlidePatch {
 	decorative: string[];
 	effects: Effect[];
 	lists: {
-		/** The markers' color as uppercase hex, when it isn't the text's. */
-		color?: string;
+		/** Each paragraph's marker's color as uppercase hex, where it isn't its first run's, which PowerPoint would otherwise use. */
+		colors?: (string | undefined)[];
 		/** Each paragraph's marker's font and size (hundredths of a point), where they differ from its first run's, which PowerPoint would otherwise use. */
 		faces?: (undefined | { font: string; size: number })[];
 		/** EMU each marked paragraph hangs its marker by, so the marker sits just before its text as a browser's outside marker does. */
@@ -364,9 +364,9 @@ export function patchSlide(
 		);
 	}
 
-	for (const { color, faces = [], hang, markers, name } of patch.lists) {
+	for (const { colors = [], faces = [], hang, markers, name } of patch.lists) {
 		patched = replaceShape(patched, name, (shape) =>
-			styleMarkers(shape, markers, faces, color, hang),
+			styleMarkers(shape, markers, faces, colors, hang),
 		);
 	}
 
@@ -502,19 +502,20 @@ function styleMarkers(
 	shape: string,
 	markers: SlidePatch["lists"][number]["markers"],
 	faces: NonNullable<SlidePatch["lists"][number]["faces"]>,
-	color: string | undefined,
+	colors: NonNullable<SlidePatch["lists"][number]["colors"]>,
 	hang: number,
 ) {
-	const bulletColor = color
-		? `<a:buClr><a:srgbClr val="${color}"/></a:buClr>`
-		: "";
 	const plainSize = '<a:buSzPct val="100000"/>';
 	let index = 0;
 	const styled = shape.replace(
 		/<a:pPr\b[^>]*?(?:\/>|>.*?<\/a:pPr>)/gs,
 		(original) => {
 			const face = faces.at(index);
+			const color = colors.at(index);
 			const marker = markers.at(index++);
+			const bulletColor = color
+				? `<a:buClr><a:srgbClr val="${color}"/></a:buClr>`
+				: "";
 			const font = face
 				? `<a:buFont typeface="${escapeXml(face.font)}"/>`
 				: "<a:buFontTx/>";

@@ -772,10 +772,10 @@ describe(writePptx, () => {
 
 	it("colors only shown markers when a list's markers have a color", async () => {
 		const xml = await slideXml([
-			listItem(
-				[listParagraph("Shown"), listParagraph("Continued", { bullet: false })],
-				{ bulletColor: "FF0000" },
-			),
+			listItem([
+				listParagraph("Shown", { markerColor: "FF0000" }),
+				listParagraph("Continued", { bullet: false, markerColor: "FF0000" }),
+			]),
 		]);
 
 		expect(xml?.match(/<a:bu\w.*?(?=<\/a:pPr>)/g)).toEqual([
@@ -787,14 +787,48 @@ describe(writePptx, () => {
 	it("colors a string marker in the text's font when a list has one", async () => {
 		expect(
 			await slideXml([
-				listItem([listParagraph("Arrow", { marker: '"→"' })], {
-					bulletColor: "FF0000",
-				}),
+				listItem([
+					listParagraph("Arrow", { marker: '"→"', markerColor: "FF0000" }),
+				]),
 			]),
 		).toContain(
 			'<a:buClr><a:srgbClr val="FF0000"/></a:buClr><a:buSzPct val="100000"/><a:buChar char="&#x2192;"/>',
 		);
 	});
+
+	it.each([
+		// PowerPoint takes a marker's color from its paragraph's first run.
+		["matches its first run", [run("Text")], "DAE7F3", undefined],
+		["differs from its first run", [run("Text")], "FF0000", "FF0000"],
+		[
+			"follows a spacer",
+			[run("  ", { pad: true }), run("Text")],
+			"DAE7F3",
+			"DAE7F3",
+		],
+		[
+			"follows a hidden run",
+			[run("Hidden", { transparency: 100 }), run("Text")],
+			"DAE7F3",
+			"DAE7F3",
+		],
+	] as const)(
+		"colors each marker only where it needs to when its color %s",
+		async (_, runs, markerColor, written) => {
+			const xml = await slideXml([
+				listItem([
+					{ ...listParagraph("First", { markerColor }), runs: [...runs] },
+					listParagraph("Second", { markerColor: "00FF00" }),
+				]),
+			]);
+
+			expect(
+				xml
+					?.match(/<a:pPr\b.*?<\/a:pPr>/g)
+					?.map((pPr) => /<a:buClr><a:srgbClr val="(\w+)"/.exec(pPr)?.[1]),
+			).toEqual([written, "00FF00"]);
+		},
+	);
 
 	it("draws a numbered marker in its item's font and size when its first run's differ", async () => {
 		const xml = await slideXml([

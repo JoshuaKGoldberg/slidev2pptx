@@ -994,22 +994,31 @@ describe(extractState, () => {
 		]);
 	});
 
-	it("leaves out a list's bullet color when it's the text's", async () => {
-		const { items } = await extract(`<ul style="color: red"><li>red</li></ul>`);
+	it("colors each item's marker as its item when ::marker doesn't", async () => {
+		const { items } = await extract(
+			`<ul style="color: red"><li>red</li><li style="color: blue">blue</li></ul>`,
+		);
 
 		expect(items).toEqual([
-			expect.objectContaining({ bulletColor: undefined, kind: "list" }),
+			expect.objectContaining({
+				paragraphs: [
+					expect.objectContaining({ markerColor: "FF0000" }),
+					expect.objectContaining({ markerColor: "0000FF" }),
+				],
+			}),
 		]);
 	});
 
-	it("colors a list's bullets when the marker's color isn't the text's", async () => {
+	it("colors a marker as its ::marker when it has a color", async () => {
 		const { items } = await extract(
 			`<ul><li>black</li></ul>`,
 			`li::marker { color: blue }`,
 		);
 
 		expect(items).toEqual([
-			expect.objectContaining({ bulletColor: "0000FF", kind: "list" }),
+			expect.objectContaining({
+				paragraphs: [expect.objectContaining({ markerColor: "0000FF" })],
+			}),
 		]);
 	});
 
@@ -1254,34 +1263,6 @@ describe(extractState, () => {
 					expect.objectContaining({ number: 4 }),
 				],
 			}),
-		]);
-	});
-
-	it("colors a list's markers when an item starts with a spacer", async () => {
-		const { items } = await extract(
-			`<ul><li><code style="padding: 0 4px; background: #eee">x</code> text</li></ul>`,
-		);
-
-		expect(items).toContainEqual(
-			expect.objectContaining({ bulletColor: "000000", kind: "list" }),
-		);
-	});
-
-	it("colors a list's markers when an item's first run is hidden", async () => {
-		const { items } = await extract(
-			`<ul><li><span style="opacity: 0">Revealed</span> then the rest</li></ul>`,
-		);
-
-		expect(items).toContainEqual(
-			expect.objectContaining({ bulletColor: "000000", kind: "list" }),
-		);
-	});
-
-	it("leaves a list's markers uncolored when they match the text", async () => {
-		const { items } = await extract(`<ul><li>text</li></ul>`);
-
-		expect(items).toEqual([
-			expect.objectContaining({ bulletColor: undefined, kind: "list" }),
 		]);
 	});
 
