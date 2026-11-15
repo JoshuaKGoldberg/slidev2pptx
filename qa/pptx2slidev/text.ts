@@ -520,6 +520,11 @@ function renderRun(
 		style.strike ? "line-through" : "",
 	].filter(Boolean);
 
+	const effects = childNamed(properties, "a:effectLst");
+	if (childNamed(effects, "a:glow")) {
+		context.lose(`Dropped a glow on text "${text.slice(0, 20)}"`);
+	}
+
 	const css = styleOf({
 		"-webkit-text-stroke":
 			outlineWidth > 0 && outlineColor
@@ -534,6 +539,7 @@ function renderRun(
 		"font-weight": weight && weight !== 400 ? weight : undefined,
 		"letter-spacing": spacing ? px(spacing / 100) : undefined,
 		"text-decoration": decorations.length ? decorations.join(" ") : undefined,
+		"text-shadow": textShadowOf(childNamed(effects, "a:outerShdw")),
 		"text-transform": cap === "all" ? "uppercase" : undefined,
 		"vertical-align": baseline > 0 ? "super" : baseline < 0 ? "sub" : undefined,
 	});
@@ -705,4 +711,40 @@ function ordinalLabel(count: number, type: string) {
 	}
 
 	return String(count);
+}
+
+/** PowerPoint's preset colors that text shadows use, as CSS. */
+const PRESET_COLORS: Partial<Record<string, string>> = {
+	black: "0,0,0",
+	white: "255,255,255",
+};
+
+/** A run's outer shadow as a CSS text-shadow: offset by its distance along its direction, blurred by its radius. */
+function textShadowOf(shadow: Element | undefined) {
+	if (!shadow) {
+		return undefined;
+	}
+
+	const srgb = childNamed(shadow, "a:srgbClr");
+	const preset = childNamed(shadow, "a:prstClr");
+	const color = srgb ?? preset;
+	const hex = srgb?.getAttribute("val");
+	const channels = hex
+		? [0, 2, 4]
+				.map((start) => Number.parseInt(hex.slice(start, start + 2), 16))
+				.join(",")
+		: PRESET_COLORS[preset?.getAttribute("val") ?? ""];
+	if (!channels) {
+		return undefined;
+	}
+
+	const alpha =
+		Number(childNamed(color, "a:alpha")?.getAttribute("val") ?? 100_000) /
+		100_000;
+	const distance = Number(shadow.getAttribute("dist") ?? 0) / EMU;
+	const direction =
+		((Number(shadow.getAttribute("dir") ?? 0) / 60_000) * Math.PI) / 180;
+	const blur = Number(shadow.getAttribute("blurRad") ?? 0) / EMU;
+	const round = (value: number) => Math.round(value * 100) / 100;
+	return `${px(round(distance * Math.cos(direction)))} ${px(round(distance * Math.sin(direction)))} ${px(round(blur))} rgba(${channels},${String(round(alpha))})`;
 }
