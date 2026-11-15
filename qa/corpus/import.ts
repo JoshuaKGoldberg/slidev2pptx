@@ -4,7 +4,7 @@
  * deck's hash and slide count in the manifest.
  * @example
  * ```shell
- * node qa/corpus/import.ts /private/tmp/claude-501/decks
+ * node qa/corpus/import.ts path/to/downloaded/decks
  * ```
  */
 import JSZip from "jszip";
