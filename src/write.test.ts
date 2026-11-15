@@ -291,17 +291,26 @@ describe(writePptx, () => {
 		expect(xml).not.toContain("<a:spcPct");
 	});
 
-	it.each([
-		["font sizes", [run("“", { size: 36 }), run("Quoted text")]],
-		["fonts", [run("Run "), run("code", { font: "Mono" })]],
-	])(
-		"spaces lines by their measured pitch when a paragraph mixes %s",
-		async (_, runs) => {
-			expect(
-				await slideXml([textItem([runs], { baselines: [40, 84, 128] })]),
-			).toContain('<a:lnSpc><a:spcPts val="4400"/></a:lnSpc>');
-		},
-	);
+	it("spaces lines exactly by their measured pitch when a paragraph mixes font sizes", async () => {
+		expect(
+			await slideXml([
+				textItem([[run("“", { size: 36 }), run("Quoted text")]], {
+					baselines: [40, 84, 128],
+				}),
+			]),
+		).toContain('<a:lnSpc><a:spcPts val="4400"/></a:lnSpc>');
+	});
+
+	it("spaces lines as a multiple of their measured pitch when a paragraph mixes fonts at one size", async () => {
+		// 44px over single spacing's 1.2 x 24px.
+		expect(
+			await slideXml([
+				textItem([[run("Run "), run("code", { font: "Mono" })]], {
+					baselines: [40, 84, 128],
+				}),
+			]),
+		).toContain('<a:lnSpc><a:spcPct val="152800"/></a:lnSpc>');
+	});
 
 	it("spaces lines as a multiple when a paragraph's fonts differ only in a spacer", async () => {
 		expect(

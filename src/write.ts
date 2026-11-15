@@ -462,7 +462,7 @@ function createItemWriter({
 			lowersEmoji: boolean;
 			/** Whether links stay on their text even without an underline, where extraction lays no hotspots over them: code and rotated text. */
 			linksOnRuns: boolean;
-			/** The measured line pitch of paragraphs that mix font sizes, which PowerPoint spaces exactly. */
+			/** The measured line pitch of paragraphs that mix font sizes or fonts. */
 			mixedPitch?: number;
 			/** Whether to outline stroked text: the copy behind a fill CSS paints over its stroke, or the text itself. */
 			outline: boolean;
@@ -488,10 +488,13 @@ function createItemWriter({
 			}
 
 			const baseSize = baseSizeOf(pieces);
-			const pitch = paragraph.lineHeight ?? lineHeight;
+			const pitch =
+				(hasMixedFaces(pieces) ? mixedPitch : undefined) ??
+				paragraph.lineHeight ??
+				lineHeight;
 			const exact =
 				pitch > 0 &&
-				(hasMixedFaces(pieces) || pieces.some((piece) => piece.lowered));
+				(hasMixedSizes(pieces) || pieces.some((piece) => piece.lowered));
 			const multiple = exact ? undefined : lineSpacingOf(pitch, baseSize);
 			return pieces.map((run, runIndex) => {
 				// Links that show no underline get transparent hotspots instead, as PowerPoint underlines linked text.
@@ -526,7 +529,7 @@ function createItemWriter({
 					italic: run.italic,
 					lang: run.upper ? UPPERCASE_LANG : undefined,
 					lineSpacing: exact
-						? Math.round(points(mixedPitch ?? pitch) * 100) / 100
+						? Math.round(points(pitch) * 100) / 100
 						: undefined,
 					lineSpacingMultiple: multiple,
 					outline:
@@ -1314,20 +1317,24 @@ function firstRunOf(paragraphs: Paragraph[]) {
 const baseSizeOf = (runs: Run[]) =>
 	(runs.find((run) => !run.script) ?? runs[0]).size;
 
+/** A paragraph's runs that size its lines: not super- and subscripts, or the spacers that pad text into place. */
+const facesOf = (runs: Run[]) => runs.filter((run) => !run.script && !run.pad);
+
 /**
- * Whether a paragraph mixes font sizes or fonts, outside of super- and
- * subscripts and the spacers that pad text into place. CSS gives every line
- * at least the paragraph's line height, growing it where each face's
- * half-leading sits apart, but PowerPoint scales a spacing multiple by each
- * line's largest font, which would squeeze lines of only smaller text.
+ * Whether a paragraph mixes font sizes or fonts. CSS gives every line at
+ * least the paragraph's line height, growing it where each face's
+ * half-leading sits apart, so its lines' pitch is measured.
  */
-const hasMixedFaces = (runs: Run[]) => {
-	const faces = runs.filter((run) => !run.script && !run.pad);
-	return (
-		new Set(faces.map((run) => run.size)).size > 1 ||
-		new Set(faces.map((run) => run.font)).size > 1
-	);
-};
+const hasMixedFaces = (runs: Run[]) =>
+	hasMixedSizes(runs) || new Set(facesOf(runs).map((run) => run.font)).size > 1;
+
+/**
+ * Whether a paragraph mixes font sizes. PowerPoint scales a spacing multiple
+ * by each line's largest font, which would squeeze lines of only smaller
+ * text, so these are spaced exactly.
+ */
+const hasMixedSizes = (runs: Run[]) =>
+	new Set(facesOf(runs).map((run) => run.size)).size > 1;
 
 /**
  * The dash pattern Blink draws a dashed or dotted line in, in 100000ths of
@@ -1398,11 +1405,14 @@ const breaksBefore = (run: Run, wrap: boolean) =>
 
 /**
  * Whether a paragraph's lines are spaced exactly rather than by a multiple:
- * where they mix faces, or where emoji among text are lowered, as PowerPoint
+ * where they mix sizes, or where emoji among text are lowered, as PowerPoint
  * would make room under a multiple for the larger size they're written at.
+ * Exact spacing is avoided elsewhere, as at a pitch near single spacing,
+ * whether PowerPoint puts the first baseline by its spacing multiple's rule or
+ * its single spacing's flips with the font size (measured).
  */
 const spacesExactly = (runs: Run[], lowersEmoji: boolean) =>
-	hasMixedFaces(runs) ||
+	hasMixedSizes(runs) ||
 	(lowersEmoji && withLoweredEmoji(runs).some((run) => run.lowered));
 
 /** A run that may be an emoji lowered by an offset from its line's baseline. */
