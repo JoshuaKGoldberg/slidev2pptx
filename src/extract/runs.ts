@@ -132,6 +132,7 @@ export function runsToParagraph(
 	let right = -Infinity;
 	let wrapped = false;
 	let afterNewline = false;
+	let leadingSpaced = false;
 	for (const run of entry.runs) {
 		const owner = context.byId.get(run.owner);
 		if (!owner || isLineFeed(run)) {
@@ -176,6 +177,10 @@ export function runsToParagraph(
 			style,
 			match?.original,
 		);
+		if (!runs.length) {
+			leadingSpaced = preserved;
+		}
+
 		if (newLine) {
 			const last = runs.at(-1);
 			const { blankLines, forced, spaced } = breakBefore(
@@ -199,11 +204,17 @@ export function runsToParagraph(
 				});
 			}
 
+			// Preserved spaces indent a line the source starts, but hang at the end of a line the browser wraps.
+			const indents = preserved && (forced || !last);
 			const lineBreak = forced ? "forced" : "wrap";
 			if (pad) {
 				runs.push({ ...pad, lineBreak }, { ...style, text });
 			} else {
-				runs.push({ ...style, lineBreak, text: text.trimStart() });
+				runs.push({
+					...style,
+					lineBreak,
+					text: indents ? text : text.trimStart(),
+				});
 			}
 		} else {
 			if (pad) {
@@ -220,7 +231,7 @@ export function runsToParagraph(
 		baselines,
 		left: frame.origin.x,
 		right,
-		runs: trimRuns(runs),
+		runs: trimRuns(runs, leadingSpaced),
 		wrapRight: wrapped ? right : undefined,
 	};
 }
@@ -410,9 +421,11 @@ function sourceMatcher(sourceText: string) {
 	const source = sourceText.toLowerCase();
 	let cursor = 0;
 	return (text: string, preserved: boolean) => {
-		const needle = (preserved ? text : text.replace(COLLAPSIBLE_SPACE, " "))
-			.trim()
-			.toLowerCase();
+		const spaced = (
+			preserved ? text : text.replace(COLLAPSIBLE_SPACE, " ")
+		).toLowerCase();
+		// A run of only preserved spaces, as takumi lays out an indent, matches as itself.
+		const needle = spaced.trim() || (preserved ? spaced : "");
 		const found = needle ? source.indexOf(needle, cursor) : -1;
 		if (found < 0) {
 			return undefined;
@@ -469,12 +482,12 @@ function textColorOf(
 	);
 }
 
-function trimRuns(runs: Run[]) {
+function trimRuns(runs: Run[], leadingSpaced: boolean) {
 	const first = runs.at(0);
 	const last = runs.at(-1);
 	if (first) {
 		delete first.lineBreak;
-		if (!first.pad) {
+		if (!first.pad && !leadingSpaced) {
 			first.text = first.text.trimStart();
 		}
 	}

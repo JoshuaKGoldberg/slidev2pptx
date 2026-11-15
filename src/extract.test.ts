@@ -354,6 +354,40 @@ describe(extractState, () => {
 		]);
 	});
 
+	it.each([
+		["pre", `<p style="margin: 0">{</p><p style="margin: 0">    a<br>  b</p>`],
+		[
+			"pre-wrap",
+			`<p style="margin: 0">{</p><p style="margin: 0">    a<br>  b</p>`,
+		],
+		// As Shiki writes code blocks, with each line's indent in a span of its own.
+		[
+			"pre",
+			`<p style="margin: 0">{</p><p style="margin: 0"><span class="line"><span>    </span><span>a</span></span>\n<span class="line"><span>  </span><span>b</span></span></p>`,
+		],
+	])(
+		"keeps leading spaces on each line when white-space is %s: %s",
+		async (whiteSpace, html) => {
+			const { items } = await extract(
+				`<div style="white-space: ${whiteSpace}; font-family: 'Fixture Sans'">${html}</div>`,
+			);
+
+			expect(
+				items.flatMap((item) =>
+					item.kind === "text"
+						? item.paragraphs.map((paragraph) =>
+								"runs" in paragraph
+									? paragraph.runs
+											.map((run) => (run.lineBreak ? "\n" : "") + run.text)
+											.join("")
+									: "",
+							)
+						: [],
+				),
+			).toEqual(["{", "    a\n  b"]);
+		},
+	);
+
 	it("renders math as one picture with its TeX as alt text", async () => {
 		const { items } = await extract(
 			`<p>Area: <span class="katex"><span class="katex-source" style="position: absolute; clip: rect(1px, 1px, 1px, 1px); width: 1px; height: 1px; overflow: hidden"><annotation encoding="application/x-tex">x^2</annotation></span><span class="katex-html" style="display: inline-block">x2</span></span></p>`,
