@@ -499,6 +499,22 @@ describe(extractState, () => {
 		},
 	);
 
+	it.each([
+		// CSS start-aligns a word too wide for its box, which widens to it so PowerPoint doesn't break it.
+		["Overflowing", "left", true],
+		["Fits", "center", false],
+		// A line that wraps keeps its alignment.
+		["Overflowing words", "center", false],
+	])("aligns centered %j to the %s", async (text, align, widens) => {
+		const { items } = await extract(
+			`<p style="width: 40px; text-align: center">${text}</p>`,
+		);
+		const [item] = items;
+
+		expect(item).toMatchObject({ kind: "text", style: { align } });
+		expect(item.box.width > 40).toBe(widens);
+	});
+
 	it("strikes text through when its decoration is line-through", async () => {
 		const { items } = await extract(
 			`<p><span style="text-decoration-line: line-through">old</span> new</p>`,

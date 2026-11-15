@@ -26,6 +26,9 @@ import {
 /** Link targets PowerPoint can open. */
 const LINK_PROTOCOL = /^(?:https?|mailto):/i;
 
+/** px a line may run past its box's end before it counts as overflowing, for layout rounding. */
+const OVERFLOW_TOLERANCE = 0.5;
+
 /** A code block's lines, in order: highlighted lines, twoslash error lines, and twoslash query popups, which show below their token's line. */
 const CODE_LINES = ".line, .twoslash-meta-line, .twoslash-popup-container";
 
@@ -226,10 +229,10 @@ export function textItem(
 	entry: TextRuns,
 ) {
 	const { box: entryBox, rotation, scale } = geometryOf(entry.box);
-	const box = entry.element
+	const content = entry.element
 		? insetBox(entryBox, context.contentInsets(entry.element), scale)
 		: entryBox;
-	const { baselines, runs, wrapRight } = runsToParagraph(
+	const { baselines, right, runs, start, wrapRight } = runsToParagraph(
 		context,
 		entry,
 		element,
@@ -240,6 +243,16 @@ export function textItem(
 	}
 
 	const style = context.styleOf(element);
+	const rtl = isRightToLeft(context, element);
+	// CSS start-aligns a line too wide for its box, where PowerPoint would center or end-align it.
+	const overflows =
+		!rtl &&
+		baselines.length === 1 &&
+		Math.abs(start - content.x) <= OVERFLOW_TOLERANCE &&
+		right - (content.x + content.width) > OVERFLOW_TOLERANCE;
+	// Unturned, the box widens to the line, which PowerPoint would otherwise break; turned, it keeps the center it turns about.
+	const box =
+		overflows && !rotation ? { ...content, width: right - content.x } : content;
 	context.push(element, {
 		baselines: rotation ? undefined : baselines,
 		box,
@@ -249,12 +262,12 @@ export function textItem(
 		paragraphs,
 		rotation,
 		style: {
-			align: alignOf(context, element),
+			align: overflows ? "left" : alignOf(context, element),
 			available: availableSpanOf(context, element),
 			lineHeight: lineHeightOf(style) * scale,
 			nowrap:
 				/^(?:nowrap|pre)$/.test(style["white-space"]) || Boolean(rotation),
-			rtl: isRightToLeft(context, element),
+			rtl,
 			wrapWidth: wrapRight === undefined ? undefined : wrapRight - box.x,
 		},
 	});

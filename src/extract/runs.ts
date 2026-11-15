@@ -176,6 +176,7 @@ export function runsToParagraph(
 	const padsLineStarts = /^(?:justify|left)$/.test(alignOf(context, source));
 	let previous: LaidOutRun | undefined;
 	let right = -Infinity;
+	let start = Infinity;
 	let wrapped = false;
 	let afterNewline = false;
 	let leadingSpaced = false;
@@ -203,6 +204,7 @@ export function runsToParagraph(
 
 		const style = runStyle(context, owner, opacityOf(owner));
 		right = Math.max(right, rect.x + rect.width);
+		start = Math.min(start, rect.x);
 		const newLine = startsLine(previous, run);
 		const offset =
 			(previous && !newLine
@@ -289,6 +291,8 @@ export function runsToParagraph(
 		left: frame.origin.x,
 		right,
 		runs: trimRuns(runs, leadingSpaced, holdsTrailingSpaces),
+		/** Where the text's first run starts. */
+		start,
 		wrapRight: wrapped ? right : undefined,
 	};
 }
