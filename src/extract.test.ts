@@ -928,7 +928,7 @@ describe(extractState, () => {
 					height: expect.closeTo(25, 2),
 					width: expect.closeTo(22.07, 2),
 					x: 0,
-					y: expect.closeTo(-3.5, 2),
+					y: expect.closeTo(-3.46, 2),
 				},
 			}),
 		);
@@ -1098,8 +1098,8 @@ describe(extractState, () => {
 		expect(items).toEqual([
 			expect.objectContaining({
 				paragraphs: [
-					expect.objectContaining({ baselines: [expect.closeTo(9.5)] }),
-					expect.objectContaining({ baselines: [expect.closeTo(29.5)] }),
+					expect.objectContaining({ baselines: [expect.closeTo(9.54)] }),
+					expect.objectContaining({ baselines: [expect.closeTo(29.54)] }),
 				],
 			}),
 		]);
@@ -1112,7 +1112,7 @@ describe(extractState, () => {
 
 		expect(items).toEqual([
 			expect.objectContaining({
-				baselines: [expect.closeTo(13.5), expect.closeTo(33.5)],
+				baselines: [expect.closeTo(13.54), expect.closeTo(33.54)],
 				kind: "code",
 			}),
 		]);

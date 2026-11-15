@@ -5,7 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Assets } from "./assets.ts";
 
-import { contentAreaOf, createFontBook, isEmojiText } from "./fonts.ts";
+import {
+	contentAreaOf,
+	createFontBook,
+	inlineExtentOf,
+	isEmojiText,
+} from "./fonts.ts";
 
 const leagueSpartan = fs.readFileSync(
 	new URL("fixture/fonts/league-spartan.woff2", import.meta.url),
@@ -344,19 +349,49 @@ describe("missingFamilies", () => {
 describe(contentAreaOf, () => {
 	it.each([
 		// Menlo at 20px: 18.56 and 4.72 round to 19 and 5.
-		["Menlo", 18.56, 4.72, { ascent: 19, descent: 5, shift: 0.08 }],
+		["Menlo", 18.56, 4.72, { ascent: 19, descent: 5 }],
 		// Helvetica at 20px: 15.4 and 4.6 round to 15 and 5, and macOS adds 15% of 20 to the ascent.
-		["Helvetica", 15.4, 4.6, { ascent: 18, descent: 5, shift: 1.1 }],
-		["Times", 17.8, 4.34, { ascent: 21, descent: 4, shift: 1.77 }],
+		["Helvetica", 15.4, 4.6, { ascent: 18, descent: 5 }],
+		["Times", 17.8, 4.34, { ascent: 21, descent: 4 }],
 		// Only Courier, Helvetica and Times themselves get more ascent.
-		["Helvetica Neue", 19.04, 4.6, { ascent: 19, descent: 5, shift: -0.22 }],
+		["Helvetica Neue", 19.04, 4.6, { ascent: 19, descent: 5 }],
 	])(
 		"rounds %s's content area as Blink does",
 		(font, ascent, descent, area) => {
-			const { shift, ...rounded } = contentAreaOf(font, ascent, descent);
+			expect(contentAreaOf(font, ascent, descent)).toEqual(area);
+		},
+	);
 
-			expect(rounded).toEqual({ ascent: area.ascent, descent: area.descent });
-			expect(shift).toBeCloseTo(area.shift, 2);
+	it("gives Helvetica no more ascent in takumi", () => {
+		expect(contentAreaOf("Helvetica", 15.4, 4.6, "takumi")).toEqual({
+			ascent: 15,
+			descent: 5,
+		});
+	});
+});
+
+describe(inlineExtentOf, () => {
+	// Measured in Chromium and takumi: baselines from the line's top.
+	it.each([
+		["Helvetica", 20, 24, "blink", 18],
+		["Helvetica", 20, 24, "takumi", 17],
+		["Helvetica", 18, 21.6, "blink", 17],
+		["Helvetica", 18, 21.6, "takumi", 15],
+		["Menlo", 20, 24, "takumi", 19],
+		["Menlo", 36, 43.2, "takumi", 34],
+		["Menlo", 16, 24, "blink", 17],
+	] as const)(
+		"puts %s at %ipx in a %fpx line's baseline where %s does",
+		(font, size, lineHeight, engine, above) => {
+			const [ascent, descent] =
+				font === "Menlo" ? [0.9282, 0.2358] : [0.77, 0.23];
+
+			expect(
+				inlineExtentOf(font, ascent * size, descent * size, lineHeight, engine),
+			).toEqual({
+				above,
+				below: expect.closeTo(lineHeight - above) as number,
+			});
 		},
 	);
 });

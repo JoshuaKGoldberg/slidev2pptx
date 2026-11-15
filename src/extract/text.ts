@@ -12,7 +12,7 @@ import {
 	isInvisible,
 	isLineFeed,
 	isRightToLeft,
-	lineFontAreaOf,
+	lineShiftsOf,
 	padRun,
 	runAreaOf,
 	runFrame,
@@ -40,7 +40,6 @@ export function codeItem(context: ExtractContext, pre: Element) {
 
 	const { box, scale } = geometryOf(laidOut);
 	const lineHeight = lineHeightOf(context.styleOf(pre));
-	const { shift } = lineFontAreaOf(context, pre);
 	const lines = [...pre.querySelectorAll(CODE_LINES)];
 
 	const lineOf = (run: LaidOutRun, owner: Element) =>
@@ -50,11 +49,20 @@ export function codeItem(context: ExtractContext, pre: Element) {
 	const placed = [pre, ...pre.querySelectorAll("*")]
 		.flatMap((element) => {
 			const own = context.ownRunsOf(element);
-			return [...(own ? [own] : []), ...context.looseRunsOf(element)];
+			const entries: TextRuns[] = [
+				...(own ? [own] : []),
+				...context.looseRunsOf(element),
+			];
+			return entries.map((laidOutRuns) => ({ element, laidOutRuns }));
 		})
-		.flatMap((laidOutRuns) => {
+		.flatMap(({ element, laidOutRuns }) => {
 			const frame = runFrame(context, laidOutRuns);
 			const rotated = geometryOf(laidOutRuns.box).rotation !== 0;
+			const shiftOf = lineShiftsOf(
+				context,
+				laidOutRuns,
+				laidOutRuns.element ?? element,
+			);
 			return laidOutRuns.runs.flatMap((run) => {
 				const owner = context.byId.get(run.owner);
 				const index = owner ? lineOf(run, owner) : -1;
@@ -63,7 +71,7 @@ export function codeItem(context: ExtractContext, pre: Element) {
 					index >= 0 &&
 					!isLineFeed(run) &&
 					(!clip || showsIn(runRect(frame, run), clip))
-					? [{ frame, index, owner, run }]
+					? [{ frame, index, owner, run, shift: shiftOf(run) }]
 					: [];
 			});
 		});
@@ -74,7 +82,7 @@ export function codeItem(context: ExtractContext, pre: Element) {
 	const content = insetBox(box, context.contentInsets(pre), scale);
 	const baselines: (number | undefined)[] = [];
 	const ends: number[] = [];
-	for (const { frame, index, owner, rect, run } of placed
+	for (const { frame, index, owner, rect, run, shift } of placed
 		.map((entry) => ({ ...entry, rect: runRect(entry.frame, entry.run) }))
 		.toSorted(
 			(first, second) =>
@@ -351,7 +359,7 @@ function lineBoundsOf(
 	element: Element,
 	container: Element,
 ) {
-	const { shift } = lineFontAreaOf(context, entry.element ?? container);
+	const shiftOf = lineShiftsOf(context, entry, entry.element ?? container);
 	const own = entry.runs.flatMap((run) => {
 		const owner = context.byId.get(run.owner);
 		if (!owner || !element.contains(owner)) {
@@ -366,8 +374,8 @@ function lineBoundsOf(
 		return [
 			{
 				...run,
-				bottom: area.baseline + shift + area.descent,
-				top: area.baseline + shift - area.ascent,
+				bottom: area.baseline + shiftOf(run) + area.descent,
+				top: area.baseline + shiftOf(run) - area.ascent,
 			},
 		];
 	});

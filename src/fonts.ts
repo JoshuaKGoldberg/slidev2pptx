@@ -173,21 +173,43 @@ const MACOS_ASCENT_BOOST = 0.15;
 /**
  * The content area Blink lays out and paints inline backgrounds over, given a
  * font's exact ascent and descent in layout px: each rounded to whole px, with
- * more ascent for Courier, Helvetica and Times on macOS. `shift` is how far
- * below takumi's baseline, which keeps the exact metrics, Blink puts a line's
- * as each centers its content area in the line.
+ * more ascent for Courier, Helvetica and Times on macOS. takumi rounds them
+ * alike, but gives none more ascent.
  */
-export function contentAreaOf(font: string, ascent: number, descent: number) {
+export function contentAreaOf(
+	font: string,
+	ascent: number,
+	descent: number,
+	engine: "blink" | "takumi" = "blink",
+) {
 	const below = Math.round(descent);
 	const rounded = Math.round(ascent);
-	const above = TALLER_ON_MACOS.test(font)
-		? rounded + Math.round((rounded + below) * MACOS_ASCENT_BOOST)
-		: rounded;
 	return {
-		ascent: above,
+		ascent:
+			engine === "blink" && TALLER_ON_MACOS.test(font)
+				? rounded + Math.round((rounded + below) * MACOS_ASCENT_BOOST)
+				: rounded,
 		descent: below,
-		shift: (above - below - (ascent - descent)) / 2,
 	};
+}
+
+/**
+ * How far above and below its baseline an inline box reaches in a line, in
+ * layout px: its content area, plus the half of its leading above rounded
+ * down to whole px, and the rest of the line height below. Blink and takumi
+ * lay boxes out alike but for their content areas.
+ */
+export function inlineExtentOf(
+	font: string,
+	ascent: number,
+	descent: number,
+	lineHeight: number,
+	engine: "blink" | "takumi" = "blink",
+) {
+	const area = contentAreaOf(font, ascent, descent, engine);
+	const above =
+		area.ascent + Math.floor((lineHeight - area.ascent - area.descent) / 2);
+	return { above, below: lineHeight - above };
 }
 
 /** Finds the fonts a deck uses, from its stylesheets, its Slidev font options, and installed fonts. */

@@ -5,14 +5,14 @@ import type { LaidOutRun } from "../layout.ts";
 import type { Paragraph, Point, Run, TextStyle, Underline } from "../model.ts";
 import type { ExtractContext, TextRuns } from "./context.ts";
 
-import { isAtomicInline, isOutOfFlow } from "../cascade.ts";
+import { isAtomicInline, isOutOfFlow, lineHeightOf } from "../cascade.ts";
 import {
 	parseColor,
 	parseLinearGradient,
 	parseShadows,
 	transparencyOf,
 } from "../color.ts";
-import { contentAreaOf, isEmojiText } from "../fonts.ts";
+import { contentAreaOf, inlineExtentOf, isEmojiText } from "../fonts.ts";
 import { ZERO_WIDTH_SPACE } from "../layout.ts";
 import { clipsToText, paintedSizeOf } from "./boxes.ts";
 import { geometryOf, scaleOf, showsIn } from "./geometry.ts";
@@ -83,9 +83,25 @@ const ascentRatio = (fonts: FontBook, font: string) => {
 	return ascent / (ascent + descent);
 };
 
-/** The content area of an element's font at its size, which sets where its lines' baselines go. */
-export function lineFontAreaOf(context: ExtractContext, element: Element) {
+/** How far above and below its baseline an element's inline box reaches in its lines, in layout px, as Blink and takumi lay it out. */
+interface InlineExtents {
+	blink: { above: number; below: number };
+	takumi: { above: number; below: number };
+}
+
+const extents = new WeakMap<ComputedStyle, InlineExtents>();
+
+function inlineExtentsOf(
+	context: ExtractContext,
+	element: Element,
+): InlineExtents {
 	const style = context.styleOf(element);
+	const known = extents.get(style);
+	if (known) {
+		return known;
+	}
+
+	const lineHeight = lineHeightOf(style);
 	const size = parseFloat(style["font-size"]);
 	const { font } = context.fonts.resolve(
 		style["font-family"],
@@ -93,7 +109,205 @@ export function lineFontAreaOf(context: ExtractContext, element: Element) {
 		style["font-style"] === "italic",
 	);
 	const { ascent, descent } = context.fonts.metrics(font);
-	return contentAreaOf(font, ascent * size, descent * size);
+	const extentIn = (engine: "blink" | "takumi") =>
+		inlineExtentOf(font, ascent * size, descent * size, lineHeight, engine);
+	const extent = { blink: extentIn("blink"), takumi: extentIn("takumi") };
+	extents.set(style, extent);
+	return extent;
+}
+
+/** One line of a text entry, as Blink lays it out against takumi, in slide px. */
+interface LineBox {
+	/** How far below takumi's Blink puts the line's baseline, measured from the line's top. */
+	drop: number;
+	/** How much taller Blink's line is than takumi's. */
+	growth: number;
+	/** Where takumi puts the line's first run, which orders lines. */
+	y: number;
+}
+
+/**
+ * A text entry's lines as Blink lays them out against takumi. Each line
+ * reaches as far above its baseline as the most any of its inline boxes (its
+ * block's strut, and each run's element) does, and as far below. The two
+ * engines lay each box out alike but for Blink's taller Helvetica and its kin
+ * on macOS, so a line in one of those draws its baseline lower, and a line
+ * mixing one with another font is shorter in Blink than in takumi.
+ */
+function lineBoxesOf(
+	context: ExtractContext,
+	entry: TextRuns,
+	source: Element,
+) {
+	const frame = runFrame(context, entry);
+	const strut = inlineExtentsOf(context, source);
+	const groups: { extents: InlineExtents[]; y: number }[] = [];
+	const lineOfRun = new Map<LaidOutRun, number>();
+	let previous: LaidOutRun | undefined;
+	for (const run of entry.runs) {
+		const owner = context.byId.get(run.owner);
+		if (!owner || isLineFeed(run)) {
+			continue;
+		}
+
+		if (!groups.length || startsLine(previous, run)) {
+			groups.push({ extents: [strut], y: runRect(frame, run).y });
+		}
+
+		previous = run;
+		// Raised and lowered text sits apart from the baseline the line's other boxes share.
+		if (owner !== source && !scriptOf(context.styleOf(owner), owner)) {
+			groups[groups.length - 1].extents.push(inlineExtentsOf(context, owner));
+		}
+
+		lineOfRun.set(run, groups.length - 1);
+	}
+
+	const lines = groups.map(({ extents, y }): LineBox => {
+		const most = (engine: keyof InlineExtents, side: "above" | "below") =>
+			Math.max(...extents.map((extent) => extent[engine][side]));
+		const drop = most("blink", "above") - most("takumi", "above");
+		return {
+			drop: drop * frame.scale,
+			growth:
+				(drop + most("blink", "below") - most("takumi", "below")) * frame.scale,
+			y,
+		};
+	});
+	return { lineOfRun, lines };
+}
+
+/** Lines this close, in slide px, are one line. */
+const SAME_LINE = 1;
+
+/**
+ * The flex column a block's lines are stacked in, and where it puts the space
+ * they leave: Blink's growth of the lines before a line moves it down from the
+ * start, of the lines after it moves it up from the end, and half of all of
+ * them moves it up from the center. Without a sized flex column that stacks
+ * the block alone, the block's own lines are all that move it.
+ */
+function anchorOf(context: ExtractContext, source: Element) {
+	for (
+		let current = source.parentElement;
+		current && current.id !== "slide-content";
+		current = current.parentElement
+	) {
+		const style = context.styleOf(current);
+		const display = style.display;
+		if (/^(?:inline-)?flex$/.test(display)) {
+			if (style["flex-direction"] !== "column") {
+				return undefined;
+			}
+
+			const sized = !/^(?:auto)?$/.test(style.height ?? "");
+			const justify = style["justify-content"] ?? "";
+			return {
+				container: current,
+				justify: !sized
+					? "start"
+					: /^(?:flex-)?end$/.test(justify)
+						? "end"
+						: justify === "center"
+							? "center"
+							: "start",
+			} as const;
+		}
+
+		if (/^(?:inline-)?grid$/.test(display) || isOutOfFlow(style)) {
+			return undefined;
+		}
+	}
+
+	return undefined;
+}
+
+const containerLines = new WeakMap<ExtractContext, Map<Element, LineBox[]>>();
+
+/** Every line of text in a flex column, from each block in it, in any order. */
+function containerLinesOf(context: ExtractContext, container: Element) {
+	let cache = containerLines.get(context);
+	if (!cache) {
+		cache = new Map();
+		containerLines.set(context, cache);
+	}
+
+	let lines = cache.get(container);
+	if (!lines) {
+		lines = [container, ...container.querySelectorAll("*")].flatMap(
+			(element) => {
+				const own = context.ownRunsOf(element);
+				const entries: TextRuns[] = [
+					...(own ? [own] : []),
+					...context.looseRunsOf(element),
+				];
+				return entries
+					.filter((entry) => !geometryOf(entry.box).rotation)
+					.flatMap(
+						(entry) =>
+							lineBoxesOf(context, entry, entry.element ?? element).lines,
+					);
+			},
+		);
+		cache.set(container, lines);
+	}
+
+	return lines;
+}
+
+/**
+ * How far below takumi's baseline Blink draws each run's, in layout px: its
+ * line's drop, and how far the growth of the lines stacked with it moves it.
+ */
+export function lineShiftsOf(
+	context: ExtractContext,
+	entry: TextRuns,
+	source: Element,
+) {
+	let bySource = lineShifts.get(entry.runs);
+	if (!bySource) {
+		bySource = new Map();
+		lineShifts.set(entry.runs, bySource);
+	}
+
+	let shiftOf = bySource.get(source);
+	if (!shiftOf) {
+		shiftOf = measureLineShifts(context, entry, source);
+		bySource.set(source, shiftOf);
+	}
+
+	return shiftOf;
+}
+
+const lineShifts = new WeakMap<
+	LaidOutRun[],
+	Map<Element, (run: LaidOutRun) => number>
+>();
+
+function measureLineShifts(
+	context: ExtractContext,
+	entry: TextRuns,
+	source: Element,
+) {
+	const { lineOfRun, lines } = lineBoxesOf(context, entry, source);
+	const { scale } = runFrame(context, entry);
+	const anchor = geometryOf(entry.box).rotation
+		? undefined
+		: anchorOf(context, source);
+	const stacked = anchor ? containerLinesOf(context, anchor.container) : lines;
+	const growthOf = (test: (line: LineBox) => boolean) =>
+		stacked.filter(test).reduce((sum, line) => sum + line.growth, 0);
+	const shifts = lines.map((line) => {
+		const before = growthOf((other) => other.y < line.y - SAME_LINE);
+		const moved =
+			anchor?.justify === "end"
+				? -line.growth - growthOf((other) => other.y > line.y + SAME_LINE)
+				: anchor?.justify === "center"
+					? before - growthOf(() => true) / 2
+					: before;
+		return (line.drop + moved) / scale;
+	});
+	return (run: LaidOutRun) => shifts[lineOfRun.get(run) ?? -1] ?? 0;
 }
 
 /** The content area of a run's font, sized by the height takumi gave the run. */
@@ -169,7 +383,7 @@ export function runsToParagraph(
 ) {
 	const frame = runFrame(context, entry);
 	const source = entry.element ?? container;
-	const { shift } = lineFontAreaOf(context, source);
+	const shiftOf = lineShiftsOf(context, entry, source);
 	const clip = geometryOf(entry.box).rotation
 		? undefined
 		: context.clipOf(source, true);
@@ -227,7 +441,13 @@ export function runsToParagraph(
 		const pad = padRun(context, style, offset);
 		previous = run;
 		if (!style.script) {
-			const baseline = baselineOf(context, frame, run, style.font, shift);
+			const baseline = baselineOf(
+				context,
+				frame,
+				run,
+				style.font,
+				shiftOf(run),
+			);
 			if (!baselines.length || newLine) {
 				baselines.push(baseline);
 			} else {

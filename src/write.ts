@@ -35,7 +35,7 @@ import type {
 } from "./ooxml.ts";
 import type { BuildPptxProblem } from "./types.ts";
 
-import { contentAreaOf, isEmojiText } from "./fonts.ts";
+import { inlineExtentOf, isEmojiText } from "./fonts.ts";
 import {
 	createGradients,
 	createNumbering,
@@ -1083,13 +1083,13 @@ function verticalPlacement(
 		exactSpacing ? metrics.baseline : SPACED_BASELINE,
 	);
 	if (rotation && style.lineHeight) {
-		const { shift } = contentAreaOf(font, ascent * size, descent * size);
-		const top =
-			box.y +
-			(style.lineHeight - (ascent + descent) * size) / 2 +
-			ascent * size +
-			shift -
-			firstLine;
+		const { above } = inlineExtentOf(
+			font,
+			ascent * size,
+			descent * size,
+			style.lineHeight,
+		);
+		const top = box.y + above - firstLine;
 		// PowerPoint turns a box about its center, as CSS does, so it grows as much below as above.
 		return { height: Math.max(0, box.height + 2 * (box.y - top)), top };
 	}
