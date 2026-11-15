@@ -440,6 +440,17 @@ describe(extractState, () => {
 		expect(wrapLimit).toBeGreaterThan(wrapWidth);
 	});
 
+	it("keeps text a line per character when its box's padding leaves it no room", async () => {
+		const { items } = await extract(
+			`<p style="box-sizing: border-box; width: 14.55px; padding: 0 14.4px; overflow-wrap: break-word">abc</p>`,
+		);
+		const [item] = items;
+
+		expect(item).toMatchObject({ kind: "text" });
+		expect(item.kind === "text" && item.baselines?.length).toBeGreaterThan(1);
+		expect(item.box.width).toBeGreaterThan(0);
+	});
+
 	it("measures the word wrapped after a line across the runs it spans", async () => {
 		const wrapLimitOf = async (html: string) => {
 			const [item] = (

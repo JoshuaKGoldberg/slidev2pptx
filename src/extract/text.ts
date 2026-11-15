@@ -325,8 +325,11 @@ export function textItem(
 		// takumi lays out a ZWJ emoji sequence like 😮‍💨 as each of its emoji, where browsers draw one.
 		!runs.some((run) => /\p{Join_Control}/u.test(run.text));
 	// Unturned, the box widens to the line, which PowerPoint would otherwise break; turned, it keeps the center it turns about.
+	// Padding wider than its box leaves no room, where browsers still draw a character a line, so the box is as wide as they are.
 	const box =
-		overflows && !rotation ? { ...content, width: lineWidth } : content;
+		(overflows || content.width <= 0) && !rotation
+			? { ...content, width: lineWidth }
+			: content;
 	context.push(element, {
 		baselines: rotation ? undefined : baselines,
 		box,
