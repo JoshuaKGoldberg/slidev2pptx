@@ -1,3 +1,4 @@
+import { parse } from "@slidev/parser";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -15,17 +16,23 @@ const SLIDEV = path.join(
  * 001-01.png for slide 1 before any clicks. Hidden slides aren't exported.
  */
 export async function renderWithSlidev(entry: string, directory: string) {
-	// Under load, exports can catch Vite re-optimizing dependencies (and export nothing)
-	// or time out waiting for a page to show, so retry those.
+	// Under load, exports can catch Vite re-optimizing dependencies (and export nothing),
+	// time out waiting for a page to show, or stop partway, so retry those.
+	const expected = await shownSlides(entry);
 	const failures: string[] = [];
 	for (let attempt = 1; attempt <= 3; attempt += 1) {
 		try {
 			const result = await exportOnce(entry, directory);
-			if (result.pngs.length) {
+			const exported = new Set(
+				result.pngs.map((file) => Number(path.basename(file).slice(0, 3))),
+			);
+			if (exported.size >= expected) {
 				return result;
 			}
 
-			failures.push(`Exported no slides: ${result.errors.join("\n")}`);
+			failures.push(
+				`Exported ${String(exported.size)} of ${String(expected)} slides: ${result.errors.join("\n")}`,
+			);
 		} catch (error) {
 			failures.push(String(error).split("\n").slice(0, 3).join("\n"));
 		}
@@ -69,4 +76,12 @@ async function exportOnce(entry: string, directory: string) {
 			.sort()
 			.map((file) => path.join(directory, file)),
 	};
+}
+
+/** How many slides a deck shows: those that aren't hidden or disabled. */
+async function shownSlides(entry: string) {
+	const { slides } = await parse(await fs.readFile(entry, "utf8"), entry);
+	return slides.filter(
+		({ frontmatter }) => !frontmatter.hide && !frontmatter.disabled,
+	).length;
 }
