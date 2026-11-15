@@ -3,3 +3,7 @@
 /coverage
 /dist
 /pnpm-lock.yaml
+# Prettier's blank-line padding breaks Slidev's --- slide separators
+/src/fixture/slides.md
+/qa/corpus/decks
+/qa/runs

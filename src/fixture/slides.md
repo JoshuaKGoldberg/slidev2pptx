@@ -55,7 +55,6 @@ transition: fade
 <p class="layer-loses">Unlayered: teal</p>
 
 ---
-
 transition: slide-left
 ---
 
@@ -66,7 +65,6 @@ transition: slide-left
 <div class="box">Boxed by ::after</div>
 
 ---
-
 layout: image-right
 image: /photo.png
 transition: none
@@ -127,9 +125,8 @@ A --> B
 ```
 
 ---
-
 dragPos:
-named: 200,300,120,30
+  named: 200,300,120,30
 ---
 
 # Directives
@@ -158,7 +155,6 @@ named: 200,300,120,30
 <span v-if="$clicks > 4" v-mark="{ at: 1 }">Marked later</span>
 
 ---
-
 clicksStart: 1
 ---
 
@@ -172,7 +168,6 @@ b
 $$
 
 ---
-
 class: nested-lists
 ---
 
@@ -274,7 +269,6 @@ const hovered = 1;
 ```ts
 const before = 1;
 ```
-
 ```ts
 const after = 1;
 ```
@@ -323,7 +317,6 @@ const wrapped = 1;
 </v-click>
 
 ---
-
 clicksStart: 2
 ---
 

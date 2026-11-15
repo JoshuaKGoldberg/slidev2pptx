@@ -21,7 +21,10 @@ jobs:
 
 name: Release
 
+# Manual only until npm publishing is set up (see .github/DEVELOPMENT.md).
+# Then restore the trigger:
+#   push:
+#     branches:
+#       - main
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: {}
