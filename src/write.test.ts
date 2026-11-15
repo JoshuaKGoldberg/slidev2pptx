@@ -2092,6 +2092,8 @@ describe(horizontalPlacement, () => {
 		[153, 151.5],
 		// No more than its rounding slack.
 		[170, 152],
+		// A limit no wider than the widest line is mismeasured, so it's left out.
+		[148, 152],
 	])(
 		"grows wrapped text no closer than half way to keeping a word the browser wrapped, %spx wide with it",
 		(wrapLimit, width) => {

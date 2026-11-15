@@ -395,7 +395,8 @@ export function runsToParagraph(
 	let right = -Infinity;
 	let start = Infinity;
 	let line = { left: Infinity, right: -Infinity };
-	let wrapLimit = Infinity;
+	/** Where the browser wrapped lines: how wide each line it ended was, and which run starts the next. */
+	const wraps: { ended: number; next: number }[] = [];
 	let wrapped = false;
 	let afterNewline = false;
 	let leadingSpaced = false;
@@ -405,7 +406,7 @@ export function runsToParagraph(
 		trailingSpaced && !padsLineStarts
 			? holdTrailingSpaces(text)
 			: trimCollapsibleEnd(text);
-	for (const run of entry.runs) {
+	for (const [index, run] of entry.runs.entries()) {
 		const owner = context.byId.get(run.owner);
 		if (!owner || isLineFeed(run)) {
 			afterNewline ||= run.text.includes("\n");
@@ -476,10 +477,7 @@ export function runsToParagraph(
 			);
 			wrapped ||= !forced;
 			if (!forced) {
-				wrapLimit = Math.min(
-					wrapLimit,
-					ended.right - ended.left + firstWordWidth(context, run, rect, style),
-				);
+				wraps.push({ ended: ended.right - ended.left, next: index });
 			}
 
 			if (last && !last.pad) {
@@ -532,28 +530,60 @@ export function runsToParagraph(
 		runs: trimRuns(runs, leadingSpaced, holdsTrailingSpaces),
 		/** Where the text's first run starts. */
 		start,
-		wrapLimit: wrapped && Number.isFinite(wrapLimit) ? wrapLimit : undefined,
+		wrapLimit:
+			wrapped && wraps.length
+				? Math.min(
+						...wraps.map(
+							({ ended, next }) =>
+								ended + firstWordWidth(context, frame, entry.runs, next),
+						),
+					)
+				: undefined,
 		wrapRight: wrapped ? right : undefined,
 	};
 }
 
-/** How wide a run's first word draws: its share of the run's width, by advance in its font where that's measurable, else by characters. */
+/**
+ * How wide the first word of the line a run starts draws: up to the first
+ * space it may break at (not a no-break space), across runs if it spans
+ * several. Within a run, its share is by advance in the run's font where
+ * that's measurable, else by characters.
+ */
 function firstWordWidth(
 	context: ExtractContext,
-	run: LaidOutRun,
-	rect: { width: number },
-	style: Omit<Run, "text">,
+	frame: RunFrame,
+	runs: LaidOutRun[],
+	start: number,
 ) {
-	const text = trimCollapsibleStart(run.text);
-	const word = /^\S*/.exec(text)?.[0] ?? "";
-	const whole = context.fonts.advance(style.font, text);
-	const part = context.fonts.advance(style.font, word);
-	return (
-		rect.width *
-		(whole && part !== undefined
-			? part / whole
-			: word.length / Math.max(1, text.length))
-	);
+	let width = 0;
+	for (let index = start; index < runs.length; index++) {
+		const run = runs[index];
+		const owner = context.byId.get(run.owner);
+		if (
+			!owner ||
+			isLineFeed(run) ||
+			(index > start && startsLine(runs[index - 1], run))
+		) {
+			break;
+		}
+
+		const { font } = runStyle(context, owner, 1);
+		const rect = runRect(frame, run);
+		const text = index === start ? trimCollapsibleStart(run.text) : run.text;
+		const word = /^[^ \t\n\r\f]*/.exec(text)?.[0] ?? "";
+		const whole = context.fonts.advance(font, run.text);
+		const part = context.fonts.advance(font, word);
+		width +=
+			rect.width *
+			(whole && part !== undefined
+				? part / whole
+				: word.length / Math.max(1, run.text.length));
+		if (word.length < text.length) {
+			break;
+		}
+	}
+
+	return width;
 }
 
 /** A spacer run as wide as a gap between runs, in a run's style; undefined when the gap is only kerning. */

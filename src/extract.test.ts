@@ -440,6 +440,21 @@ describe(extractState, () => {
 		expect(wrapLimit).toBeGreaterThan(wrapWidth);
 	});
 
+	it("measures the word wrapped after a line across the runs it spans", async () => {
+		const wrapLimitOf = async (html: string) => {
+			const [item] = (
+				await extract(
+					`<p style="width: 60px; font-family: 'Fixture Sans'">${html}</p>`,
+				)
+			).items;
+			return item.kind === "text" ? item.style.wrapLimit : undefined;
+		};
+
+		expect(
+			await wrapLimitOf("alpha <span>be</span><span>ta</span>"),
+		).toBeCloseTo((await wrapLimitOf("alpha beta")) ?? 0, 1);
+	});
+
 	it("keeps the space a pre-wrap line wraps at", async () => {
 		const { items } = await extract(
 			`<p style="white-space: pre-wrap; width: 60px; font-family: 'Fixture Sans'">alpha beta</p>`,
