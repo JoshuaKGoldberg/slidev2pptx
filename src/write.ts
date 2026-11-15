@@ -945,6 +945,7 @@ function listParagraphs(
 	markerFace?: MarkerFace;
 })[] {
 	const numbering = createNumbering();
+	const fallback = firstRunOf(item.paragraphs);
 	return spacedListParagraphs(item, points, fonts).map((paragraph, index) => {
 		const { level, number } = paragraph;
 		const visible = visibleParagraphs?.[index] ?? true;
@@ -971,7 +972,7 @@ function listParagraphs(
 								type: "number",
 							}
 						: { characterCode: marker.code, indent },
-			hang: (marker && ownMarkerWidth(paragraph, fonts)) ?? markerGap,
+			hang: marker ? markerWidthOf(paragraph, fallback, fonts) : markerGap,
 			indentLevel: level || undefined,
 			lineHeight: paragraph.lineHeight,
 			marker: marker?.kind,
@@ -1147,18 +1148,6 @@ export function markerFor(listStyle: string): Marker | undefined {
  * its first run's, which PowerPoint would otherwise draw it in. Keyword markers
  * are always drawn in Arial, so only their size matters.
  */
-/** How wide a decimal marker draws, as browsers end each against its own item's text, or undefined when its font can't be measured. */
-function ownMarkerWidth(paragraph: ListParagraph, fonts: FontBook) {
-	if (paragraph.marker !== "decimal") {
-		return undefined;
-	}
-
-	const face = paragraph.markerFace ?? paragraph.runs.at(0);
-	const advance =
-		face && fonts.advance(face.font, `${String(paragraph.number)}. `);
-	return face && advance !== undefined ? advance * face.size : undefined;
-}
-
 /** The marker color a paragraph needs written, which PowerPoint otherwise takes from its first run: when that's a spacer, see-through, or another color. */
 function colorToWrite({ markerColor, runs }: ListParagraph) {
 	const first = runs.at(0);
@@ -1178,39 +1167,47 @@ function faceToWrite(marker: Marker, { markerFace, runs }: ListParagraph) {
 		: undefined;
 }
 
-/**
- * Room for a list's outermost markers in their hanging indent, in their font
- * and size: for its widest number and period, for a string marker's text
- * (browsers draw it all, though PowerPoint draws only its first character),
- * for a bullet, or none when they show none.
- */
+/** Room for a list's outermost markers in their hanging indent: the widest of them. */
 function markerGapOf(list: ListItem, fonts: FontBook) {
-	const outermost = list.paragraphs.filter(({ level }) => level === 0);
-	const first = outermost.find(
-		({ bullet, marker }) => bullet && markerFor(marker),
+	const fallback = firstRunOf(list.paragraphs);
+	return Math.max(
+		0,
+		...list.paragraphs
+			.filter(({ bullet, level }) => bullet && level === 0)
+			.map((paragraph) => markerWidthOf(paragraph, fallback, fonts)),
 	);
-	if (!first) {
+}
+
+/**
+ * How wide a paragraph's marker draws before its text, as browsers end each
+ * against its own item's text, in its own font and size: its number, period,
+ * and space, a string marker's text (browsers draw it all, though PowerPoint
+ * draws only its first character), or a bullet's gap; none when it shows none.
+ */
+function markerWidthOf(
+	paragraph: ListParagraph,
+	fallback: Run,
+	fonts: FontBook,
+) {
+	const kind = markerFor(paragraph.marker)?.kind;
+	if (!kind) {
 		return 0;
 	}
 
-	const firstRun = firstRunOf(list.paragraphs);
-	const { font, size } = first.markerFace ?? firstRun;
-	// Browsers draw a decimal marker as its number, a period, and a space.
-	const texts = /^["']/.test(first.marker)
-		? [csstree.string.decode(first.marker)]
-		: first.marker === "decimal"
-			? outermost.map(({ number }) => `${String(number)}. `)
-			: [];
-	const advances = texts.map((text) => fonts.advance(font, text));
-	if (advances.length && advances.every((advance) => advance !== undefined)) {
-		return Math.max(...advances) * size;
+	const { font, size } =
+		paragraph.markerFace ?? paragraph.runs.at(0) ?? fallback;
+	const text = /^["']/.test(paragraph.marker)
+		? csstree.string.decode(paragraph.marker)
+		: paragraph.marker === "decimal"
+			? `${String(paragraph.number)}. `
+			: undefined;
+	const advance = text === undefined ? undefined : fonts.advance(font, text);
+	if (advance !== undefined) {
+		return advance * size;
 	}
 
-	return markerFor(first.marker)?.kind === "number"
-		? (Math.max(
-				...outermost.map(({ marker, number }) => numberLength(number, marker)),
-			) *
-				NUMBER_DIGIT_WIDTH +
+	return kind === "number"
+		? (numberLength(paragraph.number, paragraph.marker) * NUMBER_DIGIT_WIDTH +
 				NUMBER_PERIOD_WIDTH) *
 				size
 		: BULLET_GAP * size;

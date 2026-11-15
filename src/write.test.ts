@@ -752,8 +752,25 @@ describe(writePptx, () => {
 
 		expect(xml?.match(/<a:pPr\b.*?<\/a:pPr>/g)).toEqual([
 			'<a:pPr algn="l" marL="228600" indent="-228600"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buSzPct val="60000"/><a:buFont typeface="Arial"/><a:buChar char="&#x25CF;"/></a:pPr>',
-			'<a:pPr algn="l" lvl="1" marL="533400" indent="-228600"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buSzPct val="100000"/><a:buFontTx/><a:buAutoNum type="arabicPeriod" startAt="1"/></a:pPr>',
+			// The number hangs by its own width, one digit and a period at 24px, not the outer disc's.
+			'<a:pPr algn="l" lvl="1" marL="533400" indent="-350520"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buSzPct val="100000"/><a:buFontTx/><a:buAutoNum type="arabicPeriod" startAt="1"/></a:pPr>',
 		]);
+	});
+
+	it("hangs each bullet by its own marker's size", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("Small", { markerFace: { font: "Body", size: 12 } }),
+				listParagraph("Large", { markerFace: { font: "Body", size: 24 } }),
+			]),
+		]);
+
+		// 0.75em of 12px and 24px.
+		expect(
+			[...(xml ?? "").matchAll(/ indent="(-\d+)"/g)].map(
+				([, indent]) => indent,
+			),
+		).toEqual(["-114300", "-228600"]);
 	});
 
 	it("draws a nested keyword marker in Arial when a numbered list has one", async () => {
