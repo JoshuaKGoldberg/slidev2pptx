@@ -137,6 +137,13 @@ await step("compare", paths.report, async () => {
 
 	const slidev = await pngs(paths.slidevPng);
 	const pptx = await pngs(paths.pptxPng);
+	// States pair up by order, so a renderer that skipped some would put every later pair out of step.
+	if (slidev.length !== pptx.length) {
+		throw new Error(
+			`Slidev exported ${String(slidev.length)} click states, but slidev2pptx wrote ${String(pptx.length)}, so they can't be paired.`,
+		);
+	}
+
 	const original = (await exists(paths.originalPng))
 		? await pngs(paths.originalPng)
 		: [];
