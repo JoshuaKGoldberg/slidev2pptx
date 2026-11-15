@@ -107,11 +107,10 @@ It needs macOS and Microsoft PowerPoint, so it isn't part of CI.
 
 ## Releasing
 
-The [release workflow](./workflows/release.yaml) runs only when started by hand until npm publishing is set up.
-To set it up:
+The [release workflow](./workflows/release.yaml) runs on every push to `main`.
+It uses [release-it-action](https://github.com/JoshuaKGoldberg/release-it-action) to version, tag, and create a GitHub release, then publishes to npm with [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), so no npm token is needed.
 
-1. Add an `ACCESS_TOKEN` repository secret with a GitHub token that can push to `main`
-2. Publish the package to npm once by hand, so it exists
-3. Add this repository's `release.yaml` workflow as a GitHub Actions trusted publisher in the package's settings on npmjs.com
+It requires:
 
-Then restore the workflow's `push` trigger on `main`.
+- An `ACCESS_TOKEN` repository secret with a GitHub token that can push to `main`
+- This repository's `release.yaml` workflow added as a GitHub Actions trusted publisher in the [package's access settings on npmjs.com](https://www.npmjs.com/package/slidev2pptx/access)
