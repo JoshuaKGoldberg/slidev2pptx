@@ -120,12 +120,15 @@ export function convertText(
 		const spaceAfter = spacingOf(propertyChildOf(levels, "a:spcAft"), size);
 
 		// Indents and bullets inherited from layouts and masters only show in where pptx-svg drew them.
+		// Where a centered or right-aligned line starts is its alignment's doing, not a margin.
 		const drawn = renderedBullets.get(index);
 		const declaredMargin = propertyOf(levels, "marL");
 		const declaredIndent = propertyOf(levels, "indent");
 		const marginLeft =
 			declaredMargin === undefined
-				? (drawn?.textX ?? 0)
+				? align === "left" || align === "justify"
+					? (drawn?.textX ?? 0)
+					: 0
 				: Number(declaredMargin) / EMU;
 		const indent =
 			declaredIndent === undefined
