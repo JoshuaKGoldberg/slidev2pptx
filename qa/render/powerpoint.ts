@@ -23,12 +23,20 @@ export const DPI = 144;
 /** How long PowerPoint may sit idle mid-export before it counts as hung. */
 const HANG_AFTER = 5 * 60_000;
 
+/** How long an export may take by default: original talks full of media take many minutes. */
+const EXPORT_LIMIT = 30 * 60_000;
+
 /**
  * Renders every slide of a .pptx to PNGs with PowerPoint itself, one deck at a
  * time, as PowerPoint is a single app shared by every caller on this machine.
- * Hidden slides aren't exported.
+ * Hidden slides aren't exported. PowerPoint is killed and the export tried
+ * once more if it hangs or takes longer than `limit` milliseconds.
  */
-export async function renderWithPowerPoint(pptx: string, directory: string) {
+export async function renderWithPowerPoint(
+	pptx: string,
+	directory: string,
+	{ limit = EXPORT_LIMIT } = {},
+) {
 	await fs.mkdir(CONTAINER, { recursive: true });
 	await fs.rm(directory, { force: true, recursive: true });
 	await fs.mkdir(directory, { recursive: true });
@@ -39,14 +47,27 @@ export async function renderWithPowerPoint(pptx: string, directory: string) {
 	await fs.copyFile(pptx, input);
 
 	try {
-		await withLock(async () => {
+		const attempt = async () => {
 			await ensureKerning(
 				CONTAINER,
-				(deck, output) => exportPdf(deck, output, path.basename(deck, ".pptx")),
+				(deck, output) =>
+					exportPdf(deck, output, path.basename(deck, ".pptx"), EXPORT_LIMIT),
 				async () => (await powerPointProcess())?.pid,
 			);
-			await exportPdf(input, pdf, name);
-		});
+			await exportPdf(input, pdf, name, limit);
+		};
+
+		await withLock(() =>
+			// A relaunched PowerPoint gets its kerning checked again.
+			attempt().catch(async (error: unknown) => {
+				if (!(error instanceof PowerPointKilled)) {
+					throw error;
+				}
+
+				console.error(`${error.message} Trying ${pptx} once more.`);
+				await attempt();
+			}),
+		);
 		await run("pdftoppm", [
 			"-r",
 			String(DPI),
@@ -94,7 +115,10 @@ export async function renderSlidesWithPowerPoint(
 	await fs.mkdir(path.dirname(copy), { recursive: true });
 	await fs.writeFile(copy, await zip.generateAsync({ type: "nodebuffer" }));
 	try {
-		const rendered = await renderWithPowerPoint(copy, directory);
+		// Only a few slides are shown, so this takes PowerPoint a minute or two at most.
+		const rendered = await renderWithPowerPoint(copy, directory, {
+			limit: 5 * 60_000,
+		});
 		const order = [...kept].sort(
 			(a, b) => slides.indexOf(a) - slides.indexOf(b),
 		);
@@ -131,14 +155,22 @@ async function shownSlides(zip: JSZip) {
 	return slides;
 }
 
-/** Has PowerPoint save a deck as a PDF, killing PowerPoint if it hangs along the way. */
-async function exportPdf(input: string, pdf: string, name: string) {
+/** PowerPoint hung or stalled mid-export, and was killed. */
+class PowerPointKilled extends Error {}
+
+/** Has PowerPoint save a deck as a PDF, killing PowerPoint if it hangs or stalls along the way. */
+async function exportPdf(
+	input: string,
+	pdf: string,
+	name: string,
+	limit: number,
+) {
 	// AppleScript gives up on a command after 2 minutes by default, which big decks' exports take longer than.
 	const exporting = run(
 		"osascript",
 		[
 			"-e",
-			`with timeout of 1800 seconds
+			`with timeout of ${String(Math.ceil(limit / 1000) + 300)} seconds
 	tell application "Microsoft PowerPoint"
 		open POSIX file "${input}"
 		set presentationToSave to active presentation
@@ -147,15 +179,17 @@ async function exportPdf(input: string, pdf: string, name: string) {
 	end tell
 end timeout`,
 		],
-		{ timeout: 35 * 60_000 },
+		{ timeout: limit + 5 * 60_000 },
 	);
-	const watchdog = watchForHang(() => exporting.child.kill());
+	const watchdog = watchForHang(limit, () => exporting.child.kill());
 
 	try {
 		await exporting;
 	} catch (error) {
 		if (watchdog.killed) {
-			throw new Error("PowerPoint hung, so it was killed.", { cause: error });
+			throw new PowerPointKilled(`PowerPoint ${watchdog.killed}.`, {
+				cause: error,
+			});
 		}
 
 		// Don't leave this deck open in PowerPoint for the next render to trip over.
@@ -176,14 +210,16 @@ end timeout`,
 }
 
 /**
- * Watches PowerPoint's CPU time while it works for us. It sometimes deadlocks
- * mid-export (idle, ignoring every AppleEvent), which would otherwise hold the
- * render lock until the export's 30 minute timeout. Once it has done nothing
- * for HANG_AFTER and only has QA files open, this kills it; the next render
- * relaunches it.
+ * Watches PowerPoint while it works for us. It sometimes deadlocks mid-export
+ * (idle, ignoring every AppleEvent), and sometimes stalls (busy, as if behind
+ * an alert no one sees, also ignoring AppleEvents), either of which would
+ * otherwise hold the render lock until the export times out. Once it has done
+ * nothing for HANG_AFTER, or exported for longer than `limit`, and only has QA
+ * files open, this kills it; the next render relaunches it.
  */
-function watchForHang(onKill: () => void) {
-	const state = { killed: false };
+function watchForHang(limit: number, onKill: () => void) {
+	const started = Date.now();
+	const state: { killed?: "hung" | "stalled" } = {};
 	let last: undefined | { at: number; cpu: number };
 	const interval = setInterval(() => {
 		void (async () => {
@@ -193,12 +229,16 @@ function watchForHang(onKill: () => void) {
 				return;
 			}
 
-			if (!last || powerPoint.cpu - last.cpu > 1) {
+			const stalled = Date.now() - started > limit;
+			if (!stalled && (!last || powerPoint.cpu - last.cpu > 1)) {
 				last = { at: Date.now(), cpu: powerPoint.cpu };
 				return;
 			}
 
-			if (Date.now() - last.at < HANG_AFTER || state.killed) {
+			if (
+				state.killed ||
+				(!stalled && last && Date.now() - last.at < HANG_AFTER)
+			) {
 				return;
 			}
 
@@ -214,9 +254,11 @@ function watchForHang(onKill: () => void) {
 				return;
 			}
 
-			state.killed = true;
+			state.killed = stalled ? "stalled" : "hung";
 			console.error(
-				`PowerPoint used no CPU for ${String(HANG_AFTER / 60_000)} minutes mid-export; killing it.`,
+				stalled
+					? `PowerPoint took over ${String(limit / 60_000)} minutes to export; killing it.`
+					: `PowerPoint used no CPU for ${String(HANG_AFTER / 60_000)} minutes mid-export; killing it.`,
 			);
 			await run("kill", ["-9", String(powerPoint.pid)]).catch(() => undefined);
 			onKill();
@@ -265,20 +307,20 @@ async function openDocuments(pid: number) {
 
 /** Holds a cross-process lock (an exclusive directory) while running a task. */
 async function withLock(task: () => Promise<void>) {
+	const owner = path.join(LOCK, "owner");
 	const started = Date.now();
 	for (;;) {
 		try {
 			await fs.mkdir(LOCK);
+			await fs.writeFile(owner, String(process.pid));
 			break;
 		} catch {
-			// A lock older than 15 minutes belongs to a crashed render.
-			const stats = await fs.stat(LOCK).catch(() => undefined);
-			if (stats && Date.now() - stats.mtimeMs > 15 * 60_000) {
+			if (await abandoned(owner)) {
 				await fs.rm(LOCK, { force: true, recursive: true });
 				continue;
 			}
 
-			if (Date.now() - started > 60 * 60_000) {
+			if (Date.now() - started > 2 * 60 * 60_000) {
 				throw new Error("Timed out waiting for PowerPoint.");
 			}
 
@@ -290,5 +332,22 @@ async function withLock(task: () => Promise<void>) {
 		await task();
 	} finally {
 		await fs.rm(LOCK, { force: true, recursive: true });
+	}
+}
+
+/** Whether the lock's owner has exited without releasing it. */
+async function abandoned(owner: string) {
+	const pid = Number(await fs.readFile(owner, "utf8").catch(() => ""));
+	if (!pid) {
+		// The owner writes its pid right after taking the lock; give it a moment.
+		const stats = await fs.stat(LOCK).catch(() => undefined);
+		return !!stats && Date.now() - stats.mtimeMs > 30_000;
+	}
+
+	try {
+		process.kill(pid, 0);
+		return false;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code === "ESRCH";
 	}
 }

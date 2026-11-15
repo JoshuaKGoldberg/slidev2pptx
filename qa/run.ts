@@ -115,7 +115,10 @@ await step("build", paths.clicks, async () => {
 });
 
 await step("render", paths.pptxPng, async () => {
-	await renderWithPowerPoint(paths.clicks, paths.pptxPng);
+	// A built deck renders in a minute or two, so one taking 10 minutes is stuck.
+	await renderWithPowerPoint(paths.clicks, paths.pptxPng, {
+		limit: 10 * 60_000,
+	});
 	// Hand-written repro decks have no original .pptx.
 	if (!(await exists(paths.originalPng)) && (await exists(deckPath(id)))) {
 		await renderWithPowerPoint(deckPath(id), paths.originalPng);
