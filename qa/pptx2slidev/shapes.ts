@@ -46,8 +46,15 @@ export function convertShape(
 	let html: string;
 	if (type === "group") {
 		const inner = [...shape.children].find((child) => child.tagName === "g");
+		// pptx-svg draws a group's children in a child space of its own, which its transform maps to the slide,
+		// but that transform can't place the children's OOXML frames, as for a flipped group; those use the group's own.
 		const transform = inner?.getAttribute("transform") ?? "";
-		const childMatrix = multiply(matrix, parseTransform(transform));
+		const childMatrix = multiply(
+			matrix,
+			groupTransform(
+				descendantNamed(childNamed(context.raw.get(id), "p:grpSpPr"), "a:xfrm"),
+			) ?? parseTransform(transform),
+		);
 		html = `<div class="pptx-group" data-shape="${escapeAttribute(id)}">${[
 			...(inner?.children ?? []),
 		]
@@ -86,11 +93,19 @@ function convertAutoshape(
 ) {
 	const raw = context.raw.get(id);
 	const geometry = shape.getAttribute("data-ooxml-geom") ?? "rect";
-	const drawn = [...shape.children].find((child) =>
+	// Some geometries, like braces, draw an unpainted fill path before their stroke.
+	const shapes = [...shape.children].filter((child) =>
 		["ellipse", "line", "path", "polygon", "polyline", "rect"].includes(
 			child.tagName,
 		),
 	);
+	const drawn =
+		shapes.find(
+			(child) =>
+				(child.getAttribute("fill") ?? "none") !== "none" ||
+				((child.getAttribute("stroke") ?? "none") !== "none" &&
+					Number(child.getAttribute("stroke-width") ?? 0) > 0),
+		) ?? shapes.at(0);
 	const fill = drawn?.getAttribute("fill") ?? "none";
 	const stroke = drawn?.getAttribute("stroke") ?? "none";
 	const strokeWidth = Number(drawn?.getAttribute("stroke-width") ?? 0);
@@ -189,7 +204,8 @@ function convertPicture(
 	);
 	const alpha = descendantNamed(blip, "a:alphaModFix")?.getAttribute("amt");
 	const opacity = alpha ? Number(alpha) / 100_000 : undefined;
-	const flipH = !!shape.getAttribute("data-ooxml-flip-h");
+	const flipH =
+		!!shape.getAttribute("data-ooxml-flip-h") !== placement.mirrored;
 	const flipV = !!shape.getAttribute("data-ooxml-flip-v");
 	const flips = [flipH ? "scaleX(-1)" : "", flipV ? "scaleY(-1)" : ""]
 		.filter(Boolean)
@@ -503,4 +519,58 @@ function numberOf(shape: Element, name: string) {
 function opacityOf(drawn: Element | undefined, attribute = "fill-opacity") {
 	const value = drawn?.getAttribute(attribute);
 	return value && Number(value) < 1 ? Number(value) : undefined;
+}
+
+/**
+ * A group's transform from its child space to its parent's, in px: its children's frame
+ * (chOff, chExt) scaled into its own (off, ext), then flipped and turned about its center,
+ * as PowerPoint flips a shape before turning it.
+ */
+function groupTransform(xfrm: Element | undefined): Matrix | undefined {
+	const frame = (name: string, x: string, y: string) => {
+		const element = childNamed(xfrm, name);
+		return element
+			? {
+					x: Number(element.getAttribute(x) ?? 0) / EMU_PER_PX,
+					y: Number(element.getAttribute(y) ?? 0) / EMU_PER_PX,
+				}
+			: undefined;
+	};
+
+	const offset = frame("a:off", "x", "y");
+	const extent = frame("a:ext", "cx", "cy");
+	if (!xfrm || !offset || !extent) {
+		return undefined;
+	}
+
+	const childOffset = frame("a:chOff", "x", "y") ?? offset;
+	const childExtent = frame("a:chExt", "cx", "cy") ?? extent;
+	const scale = {
+		x: childExtent.x ? extent.x / childExtent.x : 1,
+		y: childExtent.y ? extent.y / childExtent.y : 1,
+	};
+	const center = { x: offset.x + extent.x / 2, y: offset.y + extent.y / 2 };
+	const radians =
+		((Number(xfrm.getAttribute("rot") ?? 0) / 60_000) * Math.PI) / 180;
+	const cos = Math.cos(radians);
+	const sin = Math.sin(radians);
+	const flipX = xfrm.getAttribute("flipH") === "1" ? -1 : 1;
+	const flipY = xfrm.getAttribute("flipV") === "1" ? -1 : 1;
+	const translate = (x: number, y: number): Matrix => ({
+		a: 1,
+		b: 0,
+		c: 0,
+		d: 1,
+		e: x,
+		f: y,
+	});
+	return [
+		translate(center.x, center.y),
+		{ a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 },
+		{ a: flipX, b: 0, c: 0, d: flipY, e: 0, f: 0 },
+		translate(-center.x, -center.y),
+		translate(offset.x, offset.y),
+		{ a: scale.x, b: 0, c: 0, d: scale.y, e: 0, f: 0 },
+		translate(-childOffset.x, -childOffset.y),
+	].reduce(multiply);
 }

@@ -11,6 +11,8 @@ export interface Matrix {
 /** A shape's frame in slide px: unrotated size around its center, then rotated. */
 export interface Placement {
 	height: number;
+	/** Whether its groups flip it: a picture mirrors, where PowerPoint keeps text readable, turned by the rest of the transform. */
+	mirrored: boolean;
 	/** Clockwise degrees. */
 	rotation: number;
 	width: number;
@@ -73,10 +75,16 @@ export function place(
 	};
 	const scaledWidth = width * scaleX;
 	const scaledHeight = height * scaleY;
+	// A transform that reflects is a horizontal flip and then a turn; a flipped shape turns the other way.
+	const mirrored = matrix.a * matrix.d - matrix.b * matrix.c < 0;
+	const turn = mirrored
+		? Math.atan2(-matrix.b, -matrix.a)
+		: Math.atan2(matrix.b, matrix.a);
 	return {
 		height: scaledHeight,
+		mirrored,
 		rotation: normalizeDegrees(
-			rotation + (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI,
+			(mirrored ? -rotation : rotation) + (turn * 180) / Math.PI,
 		),
 		width: scaledWidth,
 		x: center.x - scaledWidth / 2,
