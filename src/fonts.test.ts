@@ -371,6 +371,9 @@ describe(isEmojiText, () => {
 		["2️⃣", true],
 		["🇺🇸", true],
 		["🏴󠁧󠁢󠁳󠁣󠁴󠁿", true],
+		// Pictographs past the Basic Multilingual Plane are only in emoji fonts.
+		["🏗", true],
+		["🏗︎", false],
 		// Pictographs drawn as text by default, unless asked to be emoji.
 		["⁉", false],
 		["✔", false],

@@ -152,11 +152,13 @@ const isGeneric = (family: string): family is Generic =>
 /**
  * Text that's all emoji drawn as emoji (and white space): pictographs shown
  * as emoji by default or asked to be with U+FE0F, joined by zero-width
- * joiners, with skin tones, flags (and their tags), and keycaps. Other
- * pictographs, like ⁉, draw as text in a font that has them.
+ * joiners, with skin tones, flags (and their tags), and keycaps. Pictographs
+ * past the Basic Multilingual Plane, like 🏗, are only in emoji fonts, so
+ * they draw as emoji unless asked to be text with U+FE0E. Other pictographs,
+ * like ⁉, draw as text in a font that has them.
  */
 const EMOJI_TEXT =
-	/^(?:[\s\p{Emoji_Presentation}\p{Join_Control}\p{Variation_Selector}\u{E0020}-\u{E007F}]|\p{Extended_Pictographic}\uFE0F|[#*0-9]\uFE0F?\u20E3)+$/u;
+	/^(?:[\s\p{Emoji_Presentation}\p{Join_Control}\p{Variation_Selector}\u{E0020}-\u{E007F}]|\p{Extended_Pictographic}\uFE0F|(?=\p{Extended_Pictographic})[\u{1F000}-\u{1FFFF}](?!\uFE0E)|[#*0-9]\uFE0F?\u20E3)+$/u;
 
 /** Whether text is all emoji (and white space). */
 export const isEmojiText = (text: string) =>
