@@ -18,6 +18,8 @@ export interface TextContext {
 	lose: (loss: string) => void;
 	/** Paragraph properties a text body inherits for a level, most specific first. */
 	inherited: (body: Element | undefined, level: number) => Element[];
+	/** Body properties a placeholder's text body inherits, most specific first; none for other shapes. */
+	inheritedBody: (body: Element | undefined) => Element[];
 	/** Resolves a relationship id to its target, for hyperlinks. */
 	resolveLink: (id: string) => string | undefined;
 	/** Wraps HTML in Slidev click directives for a visibility. */
@@ -57,6 +59,12 @@ const ALIGNMENTS: Partial<Record<string, string>> = {
 /** PowerPoint's single line spacing, as a multiple of the font size. */
 const SINGLE_LINE = 1.2;
 
+/**
+ * How much further PowerPoint advances each character of text it emboldens itself, in em (measured):
+ * browsers embolden glyphs in place, so the converted text spaces its letters by as much.
+ */
+const SYNTHETIC_BOLD_ADVANCE = 0.02;
+
 /** EMU per px, as text insets and indents are in EMU. */
 const EMU = 12_700;
 
@@ -69,6 +77,8 @@ export function convertText(
 	fontScale: number,
 	/** Where pptx-svg's coordinates put the left edge of the text's content box, to measure inherited indents from. */
 	contentLeft: number,
+	/** How much autofit takes off percentage line spacing, as a fraction of single spacing. */
+	lineSpacingReduction = 0,
 ) {
 	const paragraphs = childrenNamed(body, "a:p");
 	const renderedBullets = bulletsByParagraph(rendered, contentLeft);
@@ -132,7 +142,11 @@ export function convertText(
 
 		const previous = lines.get(index - 1)?.at(-1);
 		const first = paragraphLines.at(0);
-		const lineHeight = lineHeightOf(propertyChildOf(levels, "a:lnSpc"), size);
+		const lineHeight = lineHeightOf(
+			propertyChildOf(levels, "a:lnSpc"),
+			size,
+			lineSpacingReduction,
+		);
 		// PowerPoint leaves out a text body's first paragraph's space before.
 		const spaceBefore =
 			index === 0
@@ -407,7 +421,7 @@ function convertRuns(
 	}
 
 	const html = pieces
-		.map((piece) =>
+		.map((piece, index) =>
 			piece
 				? piece.text &&
 					renderRun(
@@ -415,12 +429,28 @@ function convertRuns(
 						piece.child,
 						piece.rendered,
 						piece.style,
-						preserveSpaces(piece.text),
+						preserveSpaces(
+							keepWordsWhole(
+								piece.text,
+								pieces.slice(index + 1).find((next) => next?.text !== "")
+									?.text ?? "",
+							),
+						),
 					)
 				: "<br>",
 		)
 		.join("");
 	return { first, html, size };
+}
+
+/**
+ * Text with a word joiner after each question mark inside a word, before the next run's text if need be:
+ * browsers break lines there, where PowerPoint keeps the word (like a URL with a query) whole.
+ */
+function keepWordsWhole(text: string, next: string) {
+	return (text + next.charAt(0))
+		.replaceAll(/\?(?=[\p{L}\p{N}])/gu, "?⁠")
+		.slice(0, next ? -1 : undefined);
 }
 
 /** Click directives for a paragraph that builds in: it appears on its entrance click. */
@@ -441,8 +471,10 @@ function fallbackStyle(run: Element, fontScale: number): RunStyle {
 	return {
 		bold: properties?.getAttribute("b") === "1",
 		italic: properties?.getAttribute("i") === "1",
-		size:
-			(Number(properties?.getAttribute("sz") ?? 1800) / 100) * (fontScale || 1),
+		size: autofitSize(
+			Number(properties?.getAttribute("sz") ?? 1800) / 100,
+			fontScale,
+		),
 		strike: /strike/i.test(strike) && strike !== "noStrike",
 		underline:
 			!!properties?.getAttribute("u") &&
@@ -450,15 +482,26 @@ function fallbackStyle(run: Element, fontScale: number): RunStyle {
 	};
 }
 
-/** A paragraph's line height from its line spacing: PowerPoint's single spacing is 1.2 times the font size. */
-function lineHeightOf(spacing: Element | undefined, size: number) {
-	const percent = childNamed(spacing, "a:spcPct")?.getAttribute("val");
-	if (percent) {
-		return size * SINGLE_LINE * (Number(percent) / 100_000);
+/**
+ * A paragraph's line height from its line spacing: PowerPoint's single spacing is 1.2 times the font size.
+ * Autofit's reduction comes off percentage spacing (90% less 10% is 80%).
+ */
+function lineHeightOf(
+	spacing: Element | undefined,
+	size: number,
+	reduction: number,
+) {
+	const points = childNamed(spacing, "a:spcPts")?.getAttribute("val");
+	if (points) {
+		return Number(points) / 100;
 	}
 
-	const points = childNamed(spacing, "a:spcPts")?.getAttribute("val");
-	return points ? Number(points) / 100 : size * SINGLE_LINE;
+	const percent = childNamed(spacing, "a:spcPct")?.getAttribute("val");
+	return (
+		size *
+		SINGLE_LINE *
+		Math.max(0, Number(percent ?? 100_000) / 100_000 - reduction)
+	);
 }
 
 /** The lines pptx-svg rendered for each paragraph index, each with its run tspans. */
@@ -500,9 +543,14 @@ function renderRun(
 			properties?.getAttribute("baseline") ??
 			0,
 	);
-	const spacing = Number(
-		rendered?.getAttribute("data-ooxml-char-spacing") ?? 0,
-	);
+	const italic = style.italic || !!font?.italic;
+	const spacing =
+		Number(rendered?.getAttribute("data-ooxml-char-spacing") ?? 0) / 100 +
+		(font &&
+		(weight ?? 400) >= 600 &&
+		context.fonts.synthesizesBold(font.family, italic)
+			? SYNTHETIC_BOLD_ADVANCE * style.size
+			: 0);
 	const cap =
 		rendered?.getAttribute("data-ooxml-cap") ??
 		properties?.getAttribute("cap") ??
@@ -539,10 +587,10 @@ function renderRun(
 		color: style.color,
 		"font-family": font ? `'${font.family.replaceAll("'", "\\'")}'` : undefined,
 		"font-size": px(style.size),
-		"font-style": style.italic || font?.italic ? "italic" : undefined,
+		"font-style": italic ? "italic" : undefined,
 		"font-variant": cap === "small" ? "small-caps" : undefined,
 		"font-weight": weight && weight !== 400 ? weight : undefined,
-		"letter-spacing": spacing ? px(spacing / 100) : undefined,
+		"letter-spacing": spacing ? px(Math.round(spacing * 100) / 100) : undefined,
 		"text-decoration": decorations.length ? decorations.join(" ") : undefined,
 		"text-shadow": textShadowOf(childNamed(effects, "a:outerShdw")),
 		"text-transform": cap === "all" ? "uppercase" : undefined,
@@ -589,17 +637,22 @@ function scaledSize(rendered: Element, fontScale: number) {
 	const script =
 		Number(rendered.getAttribute("data-ooxml-baseline") ?? 0) !== 0;
 	if (specified > 0 && !script) {
-		return specified * (fontScale || 1);
+		return autofitSize(specified, fontScale);
 	}
 
-	return fontScale && Math.abs(size - specified) < 0.01
-		? size * fontScale
+	return Math.abs(size - specified) < 0.01
+		? autofitSize(size, fontScale)
 		: size;
+}
+
+/** A font size shrunk by autofit's font scale, if any: PowerPoint draws it at the nearest whole point (measured). */
+function autofitSize(size: number, fontScale: number) {
+	return fontScale ? Math.max(1, Math.round(size * fontScale)) : size;
 }
 
 function sizeOfEmpty(paragraph: Element, fontScale: number) {
 	const size = childNamed(paragraph, "a:endParaRPr")?.getAttribute("sz");
-	return size ? (Number(size) / 100) * (fontScale || 1) : undefined;
+	return size ? autofitSize(Number(size) / 100, fontScale) : undefined;
 }
 
 function spacingOf(spacing: Element | undefined, size: number) {

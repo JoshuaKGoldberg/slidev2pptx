@@ -47,18 +47,24 @@ const STYLE_WEIGHTS: [RegExp, number][] = [
 	[/^(?:black|heavy)$/i, 900],
 ];
 
-/** fontconfig weights to CSS weights. */
+/** fontconfig weights to CSS weights, as fontconfig maps OpenType weights linearly between these. */
 const FONTCONFIG_WEIGHTS: [number, number][] = [
 	[0, 100],
 	[40, 200],
 	[50, 300],
+	[55, 350],
+	[75, 380],
 	[80, 400],
 	[100, 500],
 	[180, 600],
 	[200, 700],
 	[205, 800],
 	[210, 900],
+	[215, 1000],
 ];
+
+/** The lightest weight browsers and PowerPoint draw bold text in without emboldening it themselves. */
+const BOLD_THRESHOLD = 600;
 
 let index: FontFile[] | undefined;
 
@@ -194,15 +200,40 @@ export function createFontResolver() {
 			missing.add(name);
 			return { family: name };
 		},
+		/** Whether bold text in a resolved family is emboldened by the browser (and PowerPoint), having no face of its own that's bold. */
+		synthesizesBold(family: string, italic: boolean) {
+			const own = [...faces.values()].filter((face) => face.family === family);
+			const styled = own.filter((face) => face.italic === italic);
+			const candidates = styled.length ? styled : own;
+			return (
+				candidates.length > 0 &&
+				candidates.every(
+					(face) => Math.max(...[face.weight].flat()) < BOLD_THRESHOLD,
+				)
+			);
+		},
 	};
 }
 
+/**
+ * A face's own weight back from fontconfig's: rounding it to a named weight
+ * can cross the bold threshold, as Regular Bold's 590 would to 600.
+ */
 function cssWeight(fontconfig: number) {
-	return FONTCONFIG_WEIGHTS.reduce((closest, entry) =>
-		Math.abs(entry[0] - fontconfig) < Math.abs(closest[0] - fontconfig)
-			? entry
-			: closest,
-	)[1];
+	const above = FONTCONFIG_WEIGHTS.findIndex(([value]) => value >= fontconfig);
+	if (above < 0) {
+		return 1000;
+	}
+
+	if (above === 0) {
+		return FONTCONFIG_WEIGHTS[0][1];
+	}
+
+	const [low, lowWeight] = FONTCONFIG_WEIGHTS[above - 1];
+	const [high, highWeight] = FONTCONFIG_WEIGHTS[above];
+	return Math.round(
+		lowWeight + ((fontconfig - low) / (high - low)) * (highWeight - lowWeight),
+	);
 }
 
 function parseStyle(style: string) {

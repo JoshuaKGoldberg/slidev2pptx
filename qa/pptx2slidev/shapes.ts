@@ -166,6 +166,14 @@ function convertAutoshape(
 			)
 		: -1;
 	const fontScale = reported > 0 ? reported : recorded;
+	// pptx-svg misses autofit's line spacing reduction when the shape's bodyPr has no attributes of its own.
+	const lineSpacingReduction = Number(
+		childNamed(childNamed(body, "a:bodyPr"), "a:normAutofit")?.getAttribute(
+			"lnSpcReduction",
+		) ??
+			shape.getAttribute("data-ooxml-ln-spc-reduction") ??
+			-1,
+	);
 	const box = [...shape.children].find((child) => child.tagName === "rect");
 	// pptx-svg writes -1 for an unset inset, which is PowerPoint's default 0.1".
 	const declaredInset = Number(
@@ -181,9 +189,19 @@ function convertAutoshape(
 		context.timing.paragraphs.get(id),
 		fontScale > 0 ? fontScale / 100_000 : 0,
 		Number(box?.getAttribute("x") ?? 0) + leftInset,
+		lineSpacingReduction > 0 ? lineSpacingReduction / 100_000 : 0,
 	);
 	if (text) {
-		parts.push(drawText(shape, body, rendered, placement, text));
+		parts.push(
+			drawText(
+				shape,
+				body,
+				rendered,
+				placement,
+				text,
+				context.inheritedBody(body),
+			),
+		);
 	}
 
 	return parts.join("");
@@ -484,6 +502,8 @@ function drawText(
 	rendered: Element | undefined,
 	placement: Placement,
 	html: string,
+	/** The body properties a placeholder inherits from its layout and master. */
+	inherited: Element[],
 ) {
 	const properties = childNamed(body, "a:bodyPr");
 	const inset = (side: string, fallback: number) => {
@@ -496,10 +516,13 @@ function drawText(
 		);
 	};
 
+	// A placeholder's anchor comes from its layout or master, else it's the top; pptx-svg doesn't always report it.
 	const anchor =
-		properties?.getAttribute("anchor") ??
+		[properties, ...inherited]
+			.map((element) => attributeOf(element, "anchor"))
+			.find(Boolean) ??
 		attributeOf(shape, "data-ooxml-anchor") ??
-		inferAnchor(rendered, placement);
+		(inherited.length ? "t" : inferAnchor(rendered, placement));
 	const wrap =
 		(properties?.getAttribute("wrap") ??
 			shape.getAttribute("data-ooxml-wrap")) !== "none";

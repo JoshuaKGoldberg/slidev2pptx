@@ -114,6 +114,26 @@ export function inheritedFrame(
 		.find((frame) => frame !== undefined);
 }
 
+/** The text body properties a placeholder inherits, from its layout's placeholder, then its master's. */
+export function inheritedBodyProperties(
+	sources: InheritanceSources,
+	body: Element | undefined,
+) {
+	const placeholder = descendantNamed(
+		descendantNamed(body?.parentElement ?? undefined, "p:nvPr"),
+		"p:ph",
+	);
+	if (!placeholder) {
+		return [];
+	}
+
+	const type = attributeOf(placeholder, "type") ?? "body";
+	return [
+		matchingPlaceholder(sources.layout, type, attributeOf(placeholder, "idx")),
+		matchingPlaceholder(sources.master, type, undefined),
+	].flatMap((shape) => descendantNamed(shape, "a:bodyPr") ?? []);
+}
+
 function levelOf(shape: Element | undefined, name: string) {
 	return childNamed(
 		childNamed(descendantNamed(shape, "p:txBody"), "a:lstStyle"),

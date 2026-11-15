@@ -18,6 +18,7 @@ import type { SlideTiming, Visibility } from "./timing.ts";
 import { createFontResolver } from "./fonts.ts";
 import { IDENTITY } from "./geometry.ts";
 import {
+	inheritedBodyProperties,
 	inheritedFrame,
 	inheritedLevels,
 	loadInheritance,
@@ -169,6 +170,8 @@ export async function convertDeck(input: string, output: string) {
 				media.get(partRels.get(relationshipId) ?? ""),
 			inherited: (body: Element | undefined, level: number) =>
 				inheritedLevels(sources, body, level),
+			inheritedBody: (body: Element | undefined) =>
+				inheritedBodyProperties(sources, body),
 			lose: (loss: string) => losses.push(loss),
 			raw,
 			resolveLink: (id: string) => partRels.get(id),
