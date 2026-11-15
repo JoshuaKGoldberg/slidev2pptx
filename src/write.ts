@@ -542,14 +542,16 @@ function createItemWriter({
 		);
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
 		const drop =
-			item.kind === "text" && !rotation && paragraphs.every(isEmojiOnly)
+			item.kind === "text" && paragraphs.every(isEmojiOnly)
 				? emojiDrop(fonts.metrics(firstRun.font)) * firstRun.size
 				: 0;
+		// PowerPoint turns a box about its center, so moving the box moves its text, down along the box's own turn.
+		const turn = (rotation * Math.PI) / 180;
 		const box = {
 			height,
 			width: width + markerGap,
-			x: left - markerGap,
-			y: top + drop,
+			x: left - markerGap - drop * Math.sin(turn),
+			y: top + drop * Math.cos(turn),
 		};
 		const shadow = paragraphs
 			.flatMap(({ runs }) => runs)

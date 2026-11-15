@@ -327,6 +327,32 @@ describe(writePptx, () => {
 		},
 	);
 
+	it.each([
+		[90, { x: -3.924, y: 0 }],
+		[180, { x: 0, y: -3.924 }],
+	])(
+		"lowers emoji along a text box turned %s degrees",
+		async (rotation, drop) => {
+			const offsetOf = async (content: string) => {
+				const [, x, y] =
+					[
+						...(
+							(await slideXml([
+								textItem([[run(content)]], { baselines: undefined, rotation }),
+							])) ?? ""
+						).matchAll(/<a:off x="(\d+)" y="(\d+)"/g),
+					].at(-1) ?? [];
+				return { x: Number(x), y: Number(y) };
+			};
+
+			const emoji = await offsetOf("❌");
+			const text = await offsetOf("Text");
+
+			expect((emoji.x - text.x) / 12700).toBeCloseTo(drop.x, 1);
+			expect((emoji.y - text.y) / 12700).toBeCloseTo(drop.y, 1);
+		},
+	);
+
 	it("throws when a text item has no runs", async () => {
 		await expect(slideXml([textItem([[]])])).rejects.toThrow(
 			"Text items need at least one run.",
