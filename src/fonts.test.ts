@@ -295,6 +295,7 @@ describe(createFontBook, () => {
 		expect(book.resolve("Plain", 700, false)).toEqual({
 			bold: true,
 			font: "Plain Test",
+			synthetic: true,
 		});
 	});
 
@@ -308,6 +309,7 @@ describe(createFontBook, () => {
 			expect(book.resolve(family, 700, false)).toEqual({
 				bold,
 				font: "Semi Test",
+				...(bold && { synthetic: true }),
 			});
 		},
 	);

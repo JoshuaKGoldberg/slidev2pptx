@@ -582,7 +582,10 @@ function createItemWriter({
 				};
 				return {
 					options,
-					text: withoutControlCharacters(run.text) || (code ? " " : ""),
+					// Word joiners only keep browsers from breaking where PowerPoint doesn't anyway.
+					text:
+						withoutControlCharacters(run.text).replaceAll("\u2060", "") ||
+						(code ? " " : ""),
 				};
 			});
 		});

@@ -74,6 +74,8 @@ interface LoadedFace {
 interface ResolvedFont {
 	bold: boolean;
 	font: string;
+	/** Whether PowerPoint emboldens the face itself, which advances each character about 0.02em further than browsers' synthetic bold does. */
+	synthetic?: boolean;
 }
 
 // Chrome renders ui-monospace with SF Mono on macOS, which apps can't use; Menlo shares its advance.
@@ -456,8 +458,8 @@ export function createFontBook({
 			return missing;
 		},
 		resolve(stack, weight, italic) {
-			const { bold, font } = resolve(stack, weight, italic);
-			return { bold, font };
+			const { bold, font, synthetic } = resolve(stack, weight, italic);
+			return synthetic ? { bold, font, synthetic } : { bold, font };
 		},
 		spacer() {
 			const { face, font } = resolve("monospace", 400, false);
@@ -747,11 +749,16 @@ function powerPointName(
 
 	const faceWeight =
 		declaredWeight?.[1] ?? windowsMetricsOf(font)?.usWeightClass ?? 400;
+	const synthetic =
+		weight >= 600 &&
+		faceWeight < 600 &&
+		!/^bold(?: italic)?$/i.test(font.subfamilyName);
 	return {
 		bold:
 			weight >= 600 &&
 			(/^bold(?: italic)?$/i.test(font.subfamilyName) || faceWeight < 600),
 		font: font.familyName,
+		...(synthetic && { synthetic }),
 	};
 }
 

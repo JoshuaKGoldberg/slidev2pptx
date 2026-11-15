@@ -23,6 +23,9 @@ interface RunFrame {
 	scale: number;
 }
 
+/** How much further PowerPoint advances each character of a face it emboldens itself than browsers do, in em (measured). */
+const SYNTHETIC_BOLD_ADVANCE = 0.02;
+
 const TEXT_ALIGNMENTS: Partial<Record<string, TextStyle["align"]>> = {
 	center: "center",
 	justify: "justify",
@@ -633,7 +636,7 @@ export function runStyle(
 	const gradient =
 		!color || color.alpha === 0 ? gradientTextOf(context, element) : undefined;
 	const visible = gradient ? { alpha: 1, hex: gradient.stops[0].color } : color;
-	const { bold, font } = context.fonts.resolve(
+	const { bold, font, synthetic } = context.fonts.resolve(
 		style["font-family"],
 		Number(style["font-weight"]),
 		style["font-style"] === "italic",
@@ -656,7 +659,13 @@ export function runStyle(
 		},
 		href: /^(?:https?|mailto):/i.test(href) ? href : undefined,
 		italic: style["font-style"] === "italic",
-		letterSpacing: context.lengthOf(element, "letter-spacing") * zoom,
+		// PowerPoint's synthetic bold advances each character further than browsers', which the spacing gives back.
+		letterSpacing:
+			(context.lengthOf(element, "letter-spacing") -
+				(synthetic
+					? SYNTHETIC_BOLD_ADVANCE * parseFloat(style["font-size"])
+					: 0)) *
+			zoom,
 		pad: false,
 		script: scriptOf(style, element),
 		shadow,
