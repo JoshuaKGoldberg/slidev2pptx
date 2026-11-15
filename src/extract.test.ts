@@ -528,6 +528,27 @@ describe(extractState, () => {
 		expect(item.box.width > 40).toBe(widens);
 	});
 
+	it.each(["center", "right"])(
+		"start-aligns a %s-aligned word too wide for its turned box, keeping the box's width",
+		async (textAlign) => {
+			const { items } = await extract(
+				`<p style="width: 40px; text-align: ${textAlign}; transform: rotate(30deg)">Overflowing</p>`,
+			);
+			const [item] = items;
+
+			expect(item).toMatchObject({ kind: "text", style: { align: "left" } });
+			expect(item.box.width).toBeCloseTo(40);
+		},
+	);
+
+	it("keeps a ZWJ emoji sequence centered, as takumi measures it as each of its emoji", async () => {
+		const { items } = await extract(
+			`<p style="width: 40px; font-size: 80px; text-align: center">\u{1F62E}\u200D\u{1F4A8}</p>`,
+		);
+
+		expect(items[0]).toMatchObject({ style: { align: "center" } });
+	});
+
 	it("strikes text through when its decoration is line-through", async () => {
 		const { items } = await extract(
 			`<p><span style="text-decoration-line: line-through">old</span> new</p>`,

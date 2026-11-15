@@ -232,7 +232,7 @@ export function textItem(
 	const content = entry.element
 		? insetBox(entryBox, context.contentInsets(entry.element), scale)
 		: entryBox;
-	const { baselines, right, runs, start, wrapLimit, wrapRight } =
+	const { baselines, left, right, runs, start, wrapLimit, wrapRight } =
 		runsToParagraph(context, entry, element);
 	const paragraphs = [{ runs }];
 	if (isInvisible(paragraphs)) {
@@ -241,15 +241,19 @@ export function textItem(
 
 	const style = context.styleOf(element);
 	const rtl = isRightToLeft(context, element);
+	// Runs lie along the (turned) line from the content box's start, `left`, so the line is measured from there.
+	const lineWidth = right - left;
 	// CSS start-aligns a line too wide for its box, where PowerPoint would center or end-align it.
 	const overflows =
 		!rtl &&
 		baselines.length === 1 &&
-		Math.abs(start - content.x) <= OVERFLOW_TOLERANCE &&
-		right - (content.x + content.width) > OVERFLOW_TOLERANCE;
+		Math.abs(start - left) <= OVERFLOW_TOLERANCE &&
+		lineWidth - content.width > OVERFLOW_TOLERANCE &&
+		// takumi lays out a ZWJ emoji sequence like 😮‍💨 as each of its emoji, where browsers draw one.
+		!runs.some((run) => /\p{Join_Control}/u.test(run.text));
 	// Unturned, the box widens to the line, which PowerPoint would otherwise break; turned, it keeps the center it turns about.
 	const box =
-		overflows && !rotation ? { ...content, width: right - content.x } : content;
+		overflows && !rotation ? { ...content, width: lineWidth } : content;
 	context.push(element, {
 		baselines: rotation ? undefined : baselines,
 		box,
@@ -266,7 +270,7 @@ export function textItem(
 				/^(?:nowrap|pre)$/.test(style["white-space"]) || Boolean(rotation),
 			rtl,
 			wrapLimit,
-			wrapWidth: wrapRight === undefined ? undefined : wrapRight - box.x,
+			wrapWidth: wrapRight === undefined ? undefined : wrapRight - left,
 		},
 	});
 }
