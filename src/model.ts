@@ -150,7 +150,10 @@ export interface Run {
 	size: number;
 	/** Whether the text is struck through (CSS text-decoration-line: line-through). */
 	strike: boolean;
-	stroke?: Pick<Stroke, "color" | "width">;
+	stroke?: Pick<Stroke, "color" | "width"> & {
+		/** Whether CSS paints the stroke before the fill (paint-order: stroke), which then covers its inner half. */
+		behind: boolean;
+	};
 	text: string;
 	/** 0-100 */
 	transparency: number;

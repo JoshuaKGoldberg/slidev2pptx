@@ -70,6 +70,10 @@ export function alignOf(context: ExtractContext, element: Element) {
 	return TEXT_ALIGNMENTS[logical[align] ?? align] ?? "left";
 }
 
+/** Whether a CSS paint-order paints the stroke before the fill: the first of them it names, as it paints those it leaves out after in their usual order. */
+const strokesBehind = (order: string) =>
+	/\b(?:fill|stroke)\b/.exec(order)?.[0] === "stroke";
+
 /** Families Blink on macOS gives 15% more ascent, to match the line heights of their Windows counterparts. */
 const TALLER_ON_MACOS = /^(?:courier|helvetica|times)$/i;
 
@@ -380,6 +384,7 @@ export function runStyle(
 		),
 		stroke: stroke
 			? {
+					behind: strokesBehind(style["paint-order"]),
 					color:
 						parseColor(style["-webkit-text-stroke-color"], style.color)?.hex ??
 						"000000",

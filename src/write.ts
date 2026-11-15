@@ -428,7 +428,7 @@ function createItemWriter({
 			linksOnRuns: boolean;
 			/** The measured line pitch of paragraphs that mix font sizes, which PowerPoint spaces exactly. */
 			mixedPitch?: number;
-			/** Whether this is the outlined copy behind a text stroke. */
+			/** Whether to outline stroked text: the copy behind a fill CSS paints over its stroke, or the text itself. */
 			outline: boolean;
 			rtl: boolean;
 			wrap: boolean;
@@ -596,7 +596,12 @@ function createItemWriter({
 			wrap: !style.nowrap,
 		};
 		const names = [name];
-		if (paragraphs.some(({ runs }) => runs.some((run) => run.stroke))) {
+		const strokes = paragraphs.flatMap(({ runs }) =>
+			runs.flatMap((run) => (run.stroke ? [run.stroke] : [])),
+		);
+		// PowerPoint outlines text over its fill, as CSS strokes it by default; a stroke CSS paints first goes on a copy behind.
+		const behind = strokes.some((stroke) => stroke.behind);
+		if (behind) {
 			// https://github.com/gitbrent/PptxGenJS/issues/1527
 			const outlineName = `${name} (outline)`;
 			slide.addText(textRuns(paragraphs, { ...runOptions, outline: true }), {
@@ -610,7 +615,10 @@ function createItemWriter({
 		}
 
 		slide.addText(
-			textRuns(paragraphs, { ...runOptions, outline: false }),
+			textRuns(paragraphs, {
+				...runOptions,
+				outline: strokes.length > 0 && !behind,
+			}),
 			structuredClone(options),
 		);
 

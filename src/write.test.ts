@@ -1087,13 +1087,34 @@ describe(writePptx, () => {
 		);
 	});
 
-	it("marks a text stroke's outlined copy decorative when text is stroked", async () => {
+	it("outlines stroked text over its fill when CSS paints the stroke last", async () => {
+		const xml = await slideXml([
+			textItem([
+				[
+					run("Inked", {
+						stroke: { behind: false, color: "000000", width: 2 },
+					}),
+				],
+			]),
+		]);
+
+		expect(xml).toMatch(/name="Text: Inked">.*?<a:rPr[^>]*><a:ln w=/s);
+		expect(xml).not.toContain("(outline)");
+	});
+
+	it("marks a text stroke's outlined copy decorative when CSS paints the stroke behind the fill", async () => {
 		expect(
 			await slideXml([
-				textItem([[run("Inked", { stroke: { color: "000000", width: 2 } })]]),
+				textItem([
+					[
+						run("Inked", {
+							stroke: { behind: true, color: "000000", width: 2 },
+						}),
+					],
+				]),
 			]),
 		).toMatch(
-			/name="Text: Inked \(outline\)"><a:extLst>.*?<adec:decorative .*?name="Text: Inked"><\/p:cNvPr>/s,
+			/name="Text: Inked \(outline\)"><a:extLst>.*?<adec:decorative .*?name="Text: Inked"><\/p:cNvPr>(?:(?!<a:ln w=).)*<\/p:sp>/s,
 		);
 	});
 

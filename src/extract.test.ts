@@ -469,6 +469,36 @@ describe(extractState, () => {
 		expect(problems).toEqual(["Couldn't load the image /missing.png."]);
 	});
 
+	it.each([
+		["normal", false],
+		["stroke", true],
+		["stroke fill", true],
+		["markers stroke", true],
+		["fill stroke", false],
+		["markers", false],
+	])(
+		"strokes text behind its fill when its paint order is %j: %s",
+		async (order, behind) => {
+			const { items } = await extract(
+				`<p style="-webkit-text-stroke: 2px red; paint-order: ${order}">Inked</p>`,
+			);
+
+			expect(items).toEqual([
+				expect.objectContaining({
+					paragraphs: [
+						{
+							runs: [
+								expect.objectContaining({
+									stroke: { behind, color: "FF0000", width: 2 },
+								}),
+							],
+						},
+					],
+				}),
+			]);
+		},
+	);
+
 	it("strikes text through when its decoration is line-through", async () => {
 		const { items } = await extract(
 			`<p><span style="text-decoration-line: line-through">old</span> new</p>`,
