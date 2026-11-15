@@ -439,6 +439,15 @@ function createItemWriter({
 			const pieces = paragraph.runs.length
 				? mergeRuns(paragraph.runs, wrap)
 				: [blankRun(firstRun)];
+			if (!wrap) {
+				// Browsers hang the space a line wraps at outside its alignment, but PowerPoint aligns a space before a written break with its line.
+				for (const [index, run] of pieces.entries()) {
+					if (!run.pad && pieces[index + 1]?.lineBreak === "wrap") {
+						run.text = run.text.replace(/[ \t\n\r\f]+$/, "");
+					}
+				}
+			}
+
 			const baseSize = baseSizeOf(pieces);
 			const pitch = paragraph.lineHeight ?? lineHeight;
 			const exact = pitch > 0 && hasMixedSizes(pieces);

@@ -430,6 +430,27 @@ describe(writePptx, () => {
 		},
 	);
 
+	it.each([
+		// PowerPoint wraps a box that can wrap itself, needing the space to break at the same word.
+		[false, "<a:t>GitHub templates</a:t>"],
+		// A box that can't wrap gets the browser's wrap as a written break, which aligns any space before it with its line.
+		[true, "<a:t>GitHub</a:t></a:r><a:br/>"],
+	])(
+		"keeps the space a centered line wraps at only where PowerPoint wraps it (nowrap: %s)",
+		async (nowrap, text) => {
+			expect(
+				await slideXml([
+					textItem(
+						[[run("GitHub "), run("templates", { lineBreak: "wrap" })]],
+						{
+							style: { ...style, align: "center", nowrap, wrapWidth: 400 },
+						},
+					),
+				]),
+			).toContain(text);
+		},
+	);
+
 	it("puts a list's first baseline where a text box's goes", async () => {
 		const offsetOf = async (item: Item) =>
 			[
