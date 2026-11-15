@@ -388,6 +388,29 @@ describe(extractState, () => {
 		},
 	);
 
+	it("keeps the space a pre-wrap line wraps at", async () => {
+		const { items } = await extract(
+			`<p style="white-space: pre-wrap; width: 60px; font-family: 'Fixture Sans'">alpha beta</p>`,
+		);
+
+		expect(
+			items.flatMap((item) =>
+				item.kind === "text"
+					? item.paragraphs.map((paragraph) =>
+							"runs" in paragraph
+								? paragraph.runs
+										.map(
+											(run) =>
+												(run.lineBreak ? `<${run.lineBreak}>` : "") + run.text,
+										)
+										.join("")
+								: "",
+						)
+					: [],
+			),
+		).toEqual(["alpha <wrap>beta"]);
+	});
+
 	it("renders math as one picture with its TeX as alt text", async () => {
 		const { items } = await extract(
 			`<p>Area: <span class="katex"><span class="katex-source" style="position: absolute; clip: rect(1px, 1px, 1px, 1px); width: 1px; height: 1px; overflow: hidden"><annotation encoding="application/x-tex">x^2</annotation></span><span class="katex-html" style="display: inline-block">x2</span></span></p>`,

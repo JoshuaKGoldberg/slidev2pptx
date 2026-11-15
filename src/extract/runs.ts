@@ -190,7 +190,9 @@ export function runsToParagraph(
 			);
 			wrapped ||= !forced;
 			if (last && !last.pad) {
-				last.text = last.text.trimEnd() + (spaced && !forced ? " " : "");
+				// A space the browser wrapped at can be its own run, which the source match already passed.
+				const hung = spaced || /\s$/.test(last.text);
+				last.text = last.text.trimEnd() + (hung && !forced ? " " : "");
 			}
 
 			for (let line = 0; line < blankLines; line++) {
