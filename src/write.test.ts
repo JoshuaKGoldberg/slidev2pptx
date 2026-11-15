@@ -28,9 +28,12 @@ import {
 } from "./write.ts";
 
 const fonts: FontBook = {
-	// Only the font named "Measured" is loaded, with every character 0.5em wide.
+	// Only the font named "Measured" is loaded, with every character 0.5em wide but zero-width spaces.
 	advance: (font, text) =>
-		font === "Measured" ? Array.from(text).length * 0.5 : undefined,
+		font === "Measured"
+			? Array.from(text).filter((character) => character !== "\u200B").length *
+				0.5
+			: undefined,
 	kerning: () => undefined,
 	load: () => Promise.resolve([]),
 	metrics: () => ({
@@ -994,16 +997,28 @@ describe(writePptx, () => {
 		]);
 	});
 
-	it("starts a struck item with an unstruck empty run, which PowerPoint formats its marker by", async () => {
+	it("starts a struck item with an unstruck empty run, which PowerPoint formats its marker by, when its font draws a zero-width space as nothing", async () => {
 		const xml = await slideXml([
 			listItem([
-				listParagraph("Gone", { runs: [run("Gone", { strike: true })] }),
+				listParagraph("Gone", {
+					runs: [run("Gone", { font: "Measured", strike: true })],
+				}),
 			]),
 		]);
 
 		expect(xml).toMatch(
 			/<a:r><a:rPr lang="en-US"(?![^>]*strike)[^>]*>.*?<a:t>\u200B<\/a:t><\/a:r><a:r><a:rPr lang="en-US"[^>]*strike="sngStrike"[^>]*>.*?<a:t>Gone<\/a:t>/,
 		);
+	});
+
+	it("leaves a struck item's runs as they are when its font's zero-width space may draw wide", async () => {
+		expect(
+			await slideXml([
+				listItem([
+					listParagraph("Gone", { runs: [run("Gone", { strike: true })] }),
+				]),
+			]),
+		).not.toContain("\u200B");
 	});
 
 	it("sizes a numbered marker by its item's text when the item starts with an emoji lowered among text", async () => {

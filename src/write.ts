@@ -496,9 +496,13 @@ function createItemWriter({
 				}
 			}
 
-			// PowerPoint strikes a marker through with its paragraph's first run, where CSS never strikes one, so an empty unstruck run goes first.
+			// PowerPoint strikes a marker through with its paragraph's first run, where CSS never strikes one, so an empty unstruck run goes first, where its font draws a zero-width space as nothing (Consolas, for one, draws it as wide as a space).
 			const [first] = pieces;
-			if (paragraph.bullet && first.strike) {
+			if (
+				paragraph.bullet &&
+				first.strike &&
+				fonts.advance(first.font, ZERO_WIDTH_SPACE) === 0
+			) {
 				pieces.unshift({
 					...first,
 					href: undefined,
