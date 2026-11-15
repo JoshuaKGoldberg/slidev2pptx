@@ -15,7 +15,11 @@ import { parseArgs, promisify } from "node:util";
 import type { BuildPptxResult } from "../src/types.ts";
 import type { ConversionLog } from "./pptx2slidev/convert.ts";
 
-import { compareImages, verdictOf } from "./compare/images.ts";
+import {
+	compareImages,
+	type ImageComparison,
+	verdictOf,
+} from "./compare/images.ts";
 import { type RenderedState, rerenderMisses } from "./compare/rerender.ts";
 import { deckPath } from "./corpus/paths.ts";
 import { renderWithPowerPoint } from "./render/powerpoint.ts";
@@ -203,31 +207,61 @@ await step("compare", paths.report, async () => {
 					path.join(paths.diff, `${name}-original.png`),
 				)
 			: undefined;
+		// The round trip's end to end: the original deck against slidev2pptx's, both drawn by PowerPoint.
+		const final = originalFile
+			? await compareImages(
+					originalFile,
+					actual,
+					path.join(paths.diff, `${name}-final.png`),
+				)
+			: undefined;
 		const verdict = verdictOf(comparison);
-		if (verdict !== "pass") {
-			const panels = [
-				...(originalFile ? [panel(originalFile, "Original (PowerPoint)")] : []),
-				panel(file, "Slidev (Chromium)"),
-				panel(actual, "slidev2pptx (PowerPoint)"),
-				panel(path.join(paths.diff, `${name}.png`), "Slidev vs. slidev2pptx"),
-			];
+		const finalVerdict = verdictOf(final);
+		if (verdict !== "pass" || (final && finalVerdict !== "pass")) {
+			// Renderings on top, from the original to slidev2pptx's; their differences below, step by step.
+			const rows = originalFile
+				? [
+						[
+							panel(originalFile, "Original (PowerPoint)"),
+							panel(file, "Slidev (Chromium)"),
+							panel(actual, "slidev2pptx (PowerPoint)"),
+						],
+						[
+							panel(
+								path.join(paths.diff, `${name}-original.png`),
+								"Original vs. Slidev",
+							),
+							panel(
+								path.join(paths.diff, `${name}.png`),
+								"Slidev vs. slidev2pptx",
+							),
+							panel(
+								path.join(paths.diff, `${name}-final.png`),
+								"Original vs. slidev2pptx",
+							),
+						],
+					]
+				: [
+						[
+							panel(file, "Slidev (Chromium)"),
+							panel(actual, "slidev2pptx (PowerPoint)"),
+						],
+						[
+							panel(
+								path.join(paths.diff, `${name}.png`),
+								"Slidev vs. slidev2pptx",
+							),
+						],
+					];
 			await run("magick", [
-				"(",
-				...panels[0],
-				...panels[1],
-				"+append",
-				")",
-				"(",
-				...panels.slice(2).flat(),
-				"+append",
-				")",
+				...rows.flatMap((row) => ["(", ...row.flat(), "+append", ")"]),
 				"-background",
 				"#333333",
 				"-gravity",
 				"northwest",
 				"-append",
 				"-resize",
-				"1280x",
+				"1440x",
 				"+repage",
 				path.join(paths.sheets, `${name}.png`),
 			]);
@@ -235,6 +269,8 @@ await step("compare", paths.report, async () => {
 
 		states.push({
 			click,
+			final,
+			finalVerdict: final ? finalVerdict : undefined,
 			name,
 			original: step1,
 			// Only states that didn't pass at first are rendered again.
@@ -276,6 +312,15 @@ await step("compare", paths.report, async () => {
 			pass: states.filter((state) => state.verdict === "pass").length,
 			review: states.filter((state) => state.verdict === "review").length,
 		},
+		// Each slide's last state against the original's export, for the converter (step 1) and end to end.
+		summaryAgainstOriginal: {
+			final: verdictCounts(
+				states.flatMap(({ final }) => (final ? [final] : [])),
+			),
+			step1: verdictCounts(
+				states.flatMap(({ original }) => (original ? [original] : [])),
+			),
+		},
 		timings,
 	};
 	await fs.writeFile(paths.report, JSON.stringify(report, null, "\t") + "\n");
@@ -310,6 +355,18 @@ async function step(
 	const started = performance.now();
 	await task();
 	timings[name] = Math.round((performance.now() - started) / 100) / 10;
+}
+
+function verdictCounts(comparisons: ImageComparison[]) {
+	const counts = { fail: 0, pass: 0, review: 0 };
+	for (const comparison of comparisons) {
+		const verdict = verdictOf(comparison);
+		if (verdict !== "missing") {
+			counts[verdict] += 1;
+		}
+	}
+
+	return counts;
 }
 
 /** ImageMagick arguments for one labeled, same-sized panel of a contact sheet. */
