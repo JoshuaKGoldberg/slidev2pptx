@@ -522,13 +522,13 @@ function drawText(
 		);
 	};
 
-	// A placeholder's anchor comes from its layout or master, else it's the top; pptx-svg doesn't always report it.
+	// A placeholder's anchor comes from its layout or master, which pptx-svg doesn't always report; text that sets none, even through its placeholders, is at the top.
 	const anchor =
 		[properties, ...inherited]
 			.map((element) => attributeOf(element, "anchor"))
 			.find(Boolean) ??
 		attributeOf(shape, "data-ooxml-anchor") ??
-		(inherited.length ? "t" : inferAnchor(rendered, placement));
+		"t";
 	const wrap =
 		(properties?.getAttribute("wrap") ??
 			shape.getAttribute("data-ooxml-wrap")) !== "none";
@@ -542,24 +542,6 @@ function drawText(
 		"padding-top": px(inset("t", 45_720)),
 		"white-space": wrap ? undefined : "pre",
 	})}">${html}</div>`;
-}
-
-/** Infers a text box's vertical anchor from where pptx-svg laid out its lines, for anchors inherited from layouts. */
-function inferAnchor(rendered: Element | undefined, placement: Placement) {
-	const ys = [...(rendered?.children ?? [])]
-		.map((line) => Number(line.getAttribute("y")))
-		.filter((y) => Number.isFinite(y) && y > 0);
-	if (!ys.length) {
-		return "t";
-	}
-
-	const top = Math.min(...ys) - placement.y;
-	const bottom = placement.y + placement.height - Math.max(...ys);
-	if (Math.abs(top - bottom) < placement.height * 0.15) {
-		return "ctr";
-	}
-
-	return bottom < top ? "b" : "t";
 }
 
 function numberOf(shape: Element, name: string) {

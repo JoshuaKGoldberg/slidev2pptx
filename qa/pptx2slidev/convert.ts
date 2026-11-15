@@ -15,6 +15,7 @@ import { emfToSvg, PptxRenderer, wmfToSvg } from "pptx-svg";
 import type { SlideContext } from "./shapes.ts";
 import type { SlideTiming, Visibility } from "./timing.ts";
 
+import { inlineDiagrams } from "./diagrams.ts";
 import { createFontResolver } from "./fonts.ts";
 import { IDENTITY } from "./geometry.ts";
 import {
@@ -67,6 +68,9 @@ await convertDeck(path.resolve(input), path.resolve(output));
 export async function convertDeck(input: string, output: string) {
 	const bytes = await fs.readFile(input);
 	const zip = await JSZip.loadAsync(bytes);
+	const diagrams = await inlineDiagrams(zip, (part) =>
+		relationships(zip, part),
+	);
 	const renderer = new PptxRenderer();
 	await renderer.init(
 		await fs.readFile(
@@ -76,7 +80,7 @@ export async function convertDeck(input: string, output: string) {
 			),
 		),
 	);
-	await renderer.loadPptx(await forPptxSvg(zip, bytes));
+	await renderer.loadPptx(await forPptxSvg(zip, bytes, diagrams.size > 0));
 
 	await fs.rm(output, { force: true, recursive: true });
 	await fs.mkdir(path.join(output, "public/media"), { recursive: true });
@@ -99,7 +103,7 @@ export async function convertDeck(input: string, output: string) {
 	const transitions: (string | undefined)[] = [];
 
 	for (const [index, slidePath] of slidePaths.entries()) {
-		const losses: string[] = [];
+		const losses = [...(diagrams.get(slidePath) ?? [])];
 		const xml = (await zip.file(slidePath)?.async("string")) ?? "";
 		const slide = parseXml(xml).documentElement;
 		const rels = await relationships(zip, slidePath);
@@ -139,7 +143,7 @@ export async function convertDeck(input: string, output: string) {
 				.flatMap((child) => [...child.children])
 				.flatMap((child) => {
 					const id = child.getAttribute("id");
-					return id ? [[id, child.outerHTML] as const] : [];
+					return id ? [[id, withStopsInOrder(child).outerHTML] as const] : [];
 				}),
 		);
 		const copyMedia = (
@@ -545,6 +549,26 @@ function cssGradient(markup: string, slide: { height: number; width: number }) {
 	return `linear-gradient(${String(Math.round(degrees * 1000) / 1000)}deg, ${stops.join(", ")})`;
 }
 
+/**
+ * A gradient with its stops in order of offset, as PowerPoint takes them, where
+ * pptx-svg keeps OOXML's order and SVG moves a stop placed before an earlier one up to it.
+ */
+function withStopsInOrder(gradient: Element) {
+	const offset = (stop: Element) => {
+		const value = stop.getAttribute("offset") ?? "0";
+		return value.endsWith("%") ? Number.parseFloat(value) / 100 : Number(value);
+	};
+
+	const stops = [...gradient.children].filter(
+		(child) => child.tagName === "stop",
+	);
+	for (const stop of stops.toSorted((a, b) => offset(a) - offset(b))) {
+		gradient.append(stop);
+	}
+
+	return gradient;
+}
+
 /** A CSS color faded by an opacity, as rgba() when it's a hex color. */
 function withOpacity(color: string, opacity: number) {
 	const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
@@ -618,7 +642,12 @@ function staticTiming(): SlideTiming {
  * - Group fills (a:grpFill), which pptx-svg leaves empty, become their group's fill.
  * @see https://github.com/t-ujiie-g/pptx-svg/issues/88
  */
-async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
+async function forPptxSvg(
+	zip: JSZip,
+	bytes: Buffer<ArrayBuffer>,
+	/** Whether the deck's parts were already changed, as when its diagrams are inlined. */
+	changed = false,
+) {
 	// Placeholder pictures without frames take the frames they inherit, as pptx-svg skips them.
 	const framed = await Promise.all(
 		Object.keys(zip.files)
@@ -654,7 +683,7 @@ async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
 		}
 	}
 
-	if (!rewrites.size && !framed.includes(true)) {
+	if (!changed && !rewrites.size && !framed.includes(true)) {
 		return bytes.buffer.slice(
 			bytes.byteOffset,
 			bytes.byteOffset + bytes.byteLength,

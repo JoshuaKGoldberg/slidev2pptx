@@ -56,6 +56,15 @@ const ALIGNMENTS: Partial<Record<string, string>> = {
 	r: "right",
 };
 
+/**
+ * Where PowerPoint for Mac draws pictographs a run's font lacks, even ones
+ * shown as text by default like ✔ and ⁉, where Chromium would find a text font.
+ */
+const EMOJI_FONT = "Apple Color Emoji";
+
+/** Pictographs shown as text by default, which Chromium (unlike PowerPoint) won't draw as emoji. */
+const TEXT_PICTOGRAPH = /(?=\p{Extended_Pictographic})\P{Emoji_Presentation}/u;
+
 /** PowerPoint's single line spacing, as a multiple of the font size. */
 const SINGLE_LINE = 1.2;
 
@@ -174,7 +183,11 @@ export function convertText(
 								(tops.get(index) ?? first.y) - previous.y - lineHeight,
 							)
 						: undefined));
-		const spaceAfter = spacingOf(propertyChildOf(levels, "a:spcAft"), size);
+		// Nor its last paragraph's space after, which would lift centered and bottom-anchored text.
+		const spaceAfter =
+			index === paragraphs.length - 1
+				? undefined
+				: spacingOf(propertyChildOf(levels, "a:spcAft"), size);
 
 		// Indents and bullets inherited from layouts and masters only show in where pptx-svg drew them.
 		// Where a centered or right-aligned line starts is its alignment's doing, not a margin.
@@ -630,7 +643,9 @@ function renderRun(
 				: undefined,
 		"background-color": highlight ? `#${highlight}` : undefined,
 		color: style.color,
-		"font-family": font ? `'${font.family.replaceAll("'", "\\'")}'` : undefined,
+		"font-family": font
+			? `'${font.family.replaceAll("'", "\\'")}'${TEXT_PICTOGRAPH.test(text) ? `, '${EMOJI_FONT}'` : ""}`
+			: undefined,
 		"font-size": px(style.size),
 		"font-style": italic ? "italic" : undefined,
 		"font-variant": cap === "small" ? "small-caps" : undefined,
