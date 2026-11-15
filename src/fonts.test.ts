@@ -304,6 +304,18 @@ describe(createFontBook, () => {
 		);
 	});
 
+	it.each([
+		[`"+mn-cs", "Nowhere Sans"`, "Nowhere Sans"],
+		// Browsers' default font.
+		[`"+mn-cs"`, "Times"],
+	])(
+		"skips a theme font token, which PowerPoint would read as its theme's font, in %s",
+		async (stack, font) => {
+			const { book } = await createBook();
+			expect(book.resolve(stack, 400, false)).toEqual({ bold: false, font });
+		},
+	);
+
 	it("uses Courier New for spacers when no monospace font is installed", async () => {
 		const { book } = await createBook();
 		expect(book.spacer()).toEqual({ advance: 0.6, font: "Courier New" });

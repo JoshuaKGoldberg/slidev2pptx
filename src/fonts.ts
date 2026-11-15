@@ -286,7 +286,13 @@ export function createFontBook({
 	): ResolvedFont & { face?: LoadedFace } => {
 		const family = familyOf(stack);
 		const face = family && pickFace(family, weight, italic, loadedFaces.get);
-		const [first = ""] = splitStack(stack);
+		// PowerPoint reads a typeface starting with "+" as one of its theme's fonts, where browsers skip it as unknown.
+		const first = splitStack(stack).find((name) => !name.startsWith("+"));
+		if (!face && first === undefined && stack !== "serif") {
+			// Browsers use their default font when no family in a stack is available.
+			return resolve("serif", weight, italic);
+		}
+
 		return face
 			? {
 					...powerPointName(
@@ -298,7 +304,10 @@ export function createFontBook({
 				}
 			: {
 					bold: weight >= 600,
-					font: (isGeneric(first) ? GENERICS[first]?.[0] : undefined) ?? first,
+					font:
+						(first && isGeneric(first) ? GENERICS[first]?.[0] : undefined) ??
+						first ??
+						"",
 				};
 	};
 
