@@ -75,11 +75,16 @@ export function createFontResolver() {
 	const faces = new Map<string, FontFace>();
 	const missing = new Set<string>();
 
-	function measure(family: string, weight: number, italic: boolean) {
+	const opened = new Map<string, fontkit.Font | undefined>();
+
+	/** The fontkit face a family resolves to at a weight and style, picked out of a collection by family and style. */
+	function faceFor(family: string, weight: number, italic: boolean) {
+		const key = `${family}\0${String(weight)}\0${String(italic)}`;
+		if (opened.has(key)) {
+			return opened.get(key);
+		}
+
 		const lower = family.toLowerCase();
-		const candidates = fonts.filter((font) =>
-			font.families.some((name) => name.toLowerCase() === lower),
-		);
 		const distance = (font: FontFile) =>
 			(font.italic === italic ? 0 : 1000) +
 			Math.abs(
@@ -87,29 +92,32 @@ export function createFontResolver() {
 					? Math.min(Math.max(weight, font.weight[0]), font.weight[1])
 					: font.weight) - weight,
 			);
-		const best = candidates.sort((a, b) => distance(a) - distance(b)).at(0);
-		if (!best) {
-			return undefined;
-		}
-
+		const best = fonts
+			.filter((font) =>
+				font.families.some((name) => name.toLowerCase() === lower),
+			)
+			.sort((a, b) => distance(a) - distance(b))
+			.at(0);
+		let face: fontkit.Font | undefined;
 		try {
-			const opened = fontkit.openSync(best.file);
-			// A collection's faces are told apart by family and style.
-			const face =
-				"fonts" in opened
-					? (opened.fonts.find(
+			const file = best ? fontkit.openSync(best.file) : undefined;
+			face =
+				file && "fonts" in file
+					? (file.fonts.find(
 							(member) =>
 								member.familyName.toLowerCase() === lower &&
-								best.styles.some(
+								best?.styles.some(
 									(style) =>
 										style.toLowerCase() === member.subfamilyName.toLowerCase(),
 								),
-						) ?? opened.fonts.at(0))
-					: opened;
-			return face ? metricsOf(face, family) : undefined;
+						) ?? file.fonts.at(0))
+					: file;
 		} catch {
-			return undefined;
+			face = undefined;
 		}
+
+		opened.set(key, face);
+		return face;
 	}
 
 	function addFaces(family: string, files: FontFile[]) {
@@ -134,21 +142,17 @@ export function createFontResolver() {
 		}
 	}
 
-	const metricsCache = new Map<
-		string,
-		ReturnType<typeof metricsOf> | undefined
-	>();
-
 	return {
+		/** How wide text draws in a family at a weight and style, in em, without kerning; undefined if it has no file. */
+		advance(family: string, weight: number, italic: boolean, text: string) {
+			const face = faceFor(family, weight, italic);
+			return face && face.layout(text, []).advanceWidth / face.unitsPerEm;
+		},
 		faces: () => [...faces.values()],
 		/** Line metrics of the face a family resolves to at a weight and style, as slidev2pptx measures them; undefined if it has no file. */
 		metrics(family: string, weight: number, italic: boolean) {
-			const key = `${family}\0${String(weight)}\0${String(italic)}`;
-			if (!metricsCache.has(key)) {
-				metricsCache.set(key, measure(family, weight, italic));
-			}
-
-			return metricsCache.get(key);
+			const face = faceFor(family, weight, italic);
+			return face && metricsOf(face, family);
 		},
 		missing: () => [...missing],
 		resolve(name: string): ResolvedFont {

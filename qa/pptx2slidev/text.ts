@@ -189,13 +189,32 @@ export function convertText(
 			numbering.set(level, count);
 			// PowerPoint draws a marker in its first run's color unless the paragraph says otherwise,
 			// where a browser draws a ::marker in its list item's. (Its font follows the paragraph's.)
+			// Browsers end an outside marker against its item's border box, so the item starts where PowerPoint
+			// hangs the marker plus the marker's width, and its padding takes its text the rest of the way.
+			const markerWidth = paragraphFont
+				? (context.fonts.advance(
+						paragraphFont.family,
+						paragraphFont.weight ?? (runs.first?.bold ? 700 : 400),
+						paragraphFont.italic ?? runs.first?.italic ?? false,
+						bullet.kind === "character"
+							? `${bullet.character} `
+							: `${ordinalLabel(count, bullet.type)}. `,
+					) ?? NaN) * size
+				: NaN;
+			const hanging = Number.isFinite(markerWidth) && indent < 0;
 			const itemStyle = styleOf({
 				color: srgbOf(propertyChildOf(levels, "a:buClr")) ?? runs.first?.color,
 				"list-style-type":
 					bullet.kind === "character"
 						? `'${escapeText(bullet.character).replaceAll("'", "\\'")} '`
 						: bullet.type,
-				"margin-left": px(marginLeft || 18 * (level + 1)),
+				"margin-left": hanging
+					? px(marginLeft + indent + markerWidth)
+					: px(marginLeft || 18 * (level + 1)),
+				"padding-left":
+					hanging && -indent > markerWidth
+						? px(-indent - markerWidth)
+						: undefined,
 			});
 			list.items.push(
 				`<li${clickAttributes(paragraphVisibility?.get(index))} style="${style};${itemStyle}">${clickContent(content, paragraphVisibility?.get(index))}</li>`,
@@ -613,4 +632,45 @@ function baselineShift(
 	);
 	const shift = Math.round((powerPoint - above) * 100) / 100;
 	return Math.abs(shift) < 0.1 ? 0 : shift;
+}
+
+/** How a browser numbers a list item for a CSS list-style-type. */
+function ordinalLabel(count: number, type: string) {
+	if (type.endsWith("alpha")) {
+		let label = "";
+		for (let rest = count; rest > 0; rest = Math.floor((rest - 1) / 26)) {
+			label = String.fromCharCode(97 + ((rest - 1) % 26)) + label;
+		}
+
+		return type.startsWith("upper") ? label.toUpperCase() : label;
+	}
+
+	if (type.endsWith("roman")) {
+		const numerals: [number, string][] = [
+			[1000, "m"],
+			[900, "cm"],
+			[500, "d"],
+			[400, "cd"],
+			[100, "c"],
+			[90, "xc"],
+			[50, "l"],
+			[40, "xl"],
+			[10, "x"],
+			[9, "ix"],
+			[5, "v"],
+			[4, "iv"],
+			[1, "i"],
+		];
+		let label = "";
+		let rest = count;
+		for (const [value, numeral] of numerals) {
+			for (; rest >= value; rest -= value) {
+				label += numeral;
+			}
+		}
+
+		return type.startsWith("upper") ? label.toUpperCase() : label;
+	}
+
+	return String(count);
 }
