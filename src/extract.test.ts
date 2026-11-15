@@ -388,6 +388,45 @@ describe(extractState, () => {
 		},
 	);
 
+	it.each([
+		// CSS never collapses no-break spaces.
+		["white-space: normal", "&nbsp;&nbsp;x", ["  x"]],
+		// PowerPoint leaves trailing spaces out of alignment, but not no-break ones.
+		["white-space: pre-wrap; text-align: center", "end. ", ["end. "]],
+		[
+			"white-space: pre-wrap; text-align: right",
+			"end. <br>next",
+			["end. <forced>next"],
+		],
+		// Left-aligned, trailing spaces don't show.
+		["white-space: pre-wrap", "end. ", ["end."]],
+	])(
+		"keeps the white space that %s shows in %j",
+		async (style, html, texts) => {
+			const { items } = await extract(
+				`<p style="${style}; width: 300px; font-family: 'Fixture Sans'">${html}</p>`,
+			);
+
+			expect(
+				items.flatMap((item) =>
+					item.kind === "text"
+						? item.paragraphs.map((paragraph) =>
+								"runs" in paragraph
+									? paragraph.runs
+											.map(
+												(run) =>
+													(run.lineBreak ? `<${run.lineBreak}>` : "") +
+													run.text,
+											)
+											.join("")
+									: "",
+							)
+						: [],
+				),
+			).toEqual(texts);
+		},
+	);
+
 	it("keeps the space a pre-wrap line wraps at", async () => {
 		const { items } = await extract(
 			`<p style="white-space: pre-wrap; width: 60px; font-family: 'Fixture Sans'">alpha beta</p>`,

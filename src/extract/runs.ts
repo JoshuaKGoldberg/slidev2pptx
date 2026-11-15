@@ -32,6 +32,17 @@ const TEXT_ALIGNMENTS: Partial<Record<string, TextStyle["align"]>> = {
 /** White space that HTML collapses, which leaves out no-break spaces. */
 const COLLAPSIBLE_SPACE = /[ \t\n\r\f]+/g;
 
+/** Removes the white space HTML collapses from the start of text, which leaves no-break spaces. */
+const trimCollapsibleStart = (text: string) =>
+	text.replace(/^[ \t\n\r\f]+/, "");
+
+/** Removes the white space HTML collapses from the end of text, which leaves no-break spaces. */
+const trimCollapsibleEnd = (text: string) => text.replace(/[ \t\n\r\f]+$/, "");
+
+/** Turns trailing spaces into no-break spaces, which PowerPoint counts in a line's alignment. */
+const holdTrailingSpaces = (text: string) =>
+	text.replace(/ +$/, (spaces) => NO_BREAK_SPACE.repeat(spaces.length));
+
 /** Gaps between runs narrower than this, in px, are kerning rather than spacing. */
 const MIN_SPACER_GAP = 0.75;
 
@@ -133,6 +144,12 @@ export function runsToParagraph(
 	let wrapped = false;
 	let afterNewline = false;
 	let leadingSpaced = false;
+	let trailingSpaced = false;
+	// PowerPoint leaves trailing spaces out of a line's alignment, where browsers count preserved ones.
+	const holdsTrailingSpaces = (text: string) =>
+		trailingSpaced && !padsLineStarts
+			? holdTrailingSpaces(text)
+			: trimCollapsibleEnd(text);
 	for (const run of entry.runs) {
 		const owner = context.byId.get(run.owner);
 		if (!owner || isLineFeed(run)) {
@@ -191,8 +208,10 @@ export function runsToParagraph(
 			wrapped ||= !forced;
 			if (last && !last.pad) {
 				// A space the browser wrapped at can be its own run, which the source match already passed.
-				const hung = spaced || /\s$/.test(last.text);
-				last.text = last.text.trimEnd() + (hung && !forced ? " " : "");
+				const hung = spaced || /[ \t\n\r\f]$/.test(last.text);
+				last.text = forced
+					? holdsTrailingSpaces(last.text)
+					: trimCollapsibleEnd(last.text) + (hung ? " " : "");
 			}
 
 			for (let line = 0; line < blankLines; line++) {
@@ -215,7 +234,7 @@ export function runsToParagraph(
 				runs.push({
 					...style,
 					lineBreak,
-					text: indents ? text : text.trimStart(),
+					text: indents ? text : trimCollapsibleStart(text),
 				});
 			}
 		} else {
@@ -226,6 +245,7 @@ export function runsToParagraph(
 			runs.push({ ...style, text });
 		}
 
+		trailingSpaced = preserved;
 		afterNewline = false;
 	}
 
@@ -233,7 +253,7 @@ export function runsToParagraph(
 		baselines,
 		left: frame.origin.x,
 		right,
-		runs: trimRuns(runs, leadingSpaced),
+		runs: trimRuns(runs, leadingSpaced, holdsTrailingSpaces),
 		wrapRight: wrapped ? right : undefined,
 	};
 }
@@ -484,18 +504,22 @@ function textColorOf(
 	);
 }
 
-function trimRuns(runs: Run[], leadingSpaced: boolean) {
+function trimRuns(
+	runs: Run[],
+	leadingSpaced: boolean,
+	trimEnd: (text: string) => string,
+) {
 	const first = runs.at(0);
 	const last = runs.at(-1);
 	if (first) {
 		delete first.lineBreak;
 		if (!first.pad && !leadingSpaced) {
-			first.text = first.text.trimStart();
+			first.text = trimCollapsibleStart(first.text);
 		}
 	}
 
 	if (last && !last.pad) {
-		last.text = last.text.trimEnd();
+		last.text = trimEnd(last.text);
 	}
 
 	return runs
