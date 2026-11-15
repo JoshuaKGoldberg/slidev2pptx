@@ -1132,6 +1132,21 @@ describe(extractState, () => {
 		]);
 	});
 
+	it("insets a marker by its item's start padding and border, which browsers draw it outside of", async () => {
+		const { items } = await extract(
+			`<ul><li style="padding-left: 30px; border-left: 2px solid transparent">a</li><li>b</li></ul>`,
+		);
+
+		expect(items).toEqual([
+			expect.objectContaining({
+				paragraphs: [
+					expect.objectContaining({ markerInset: 32 }),
+					expect.objectContaining({ markerInset: undefined }),
+				],
+			}),
+		]);
+	});
+
 	it("colors a marker as its ::marker when it has a color", async () => {
 		const { items } = await extract(
 			`<ul><li>black</li></ul>`,

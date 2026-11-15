@@ -108,6 +108,8 @@ export interface ListParagraph extends Paragraph {
 	markerColor?: string;
 	/** The font and px size its marker shows in: its ::marker's, which inherits the item's rather than its first run's. */
 	markerFace?: MarkerFace;
+	/** px between its marker's end and its text's start, from its item's start padding and border: browsers draw an outside marker against the item's border box, not its text. */
+	markerInset?: number;
 	/** The item's ordinal, for numbered markers. */
 	number: number;
 	/** Whether the paragraph's list item shows, rather than being hidden in this click state, as before its v-click. */

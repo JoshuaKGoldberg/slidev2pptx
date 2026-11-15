@@ -877,6 +877,20 @@ describe(writePptx, () => {
 		).toEqual(["-114300", "-228600"]);
 	});
 
+	it("hangs a bullet past its item's marker inset as well as its marker", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("Inset", {
+					markerFace: { font: "Body", size: 24 },
+					markerInset: 30,
+				}),
+			]),
+		]);
+
+		// 0.75em of 24px, plus the 30px between the marker and the text.
+		expect(xml).toMatch(/ indent="-609600"/);
+	});
+
 	it("draws a nested keyword marker in Arial when a numbered list has one", async () => {
 		const xml = await slideXml([
 			listItem([

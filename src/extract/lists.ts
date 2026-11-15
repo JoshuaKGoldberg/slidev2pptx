@@ -172,6 +172,7 @@ export function markedItem(
 			marker: style["list-style-type"],
 			markerColor: markerColorOf(context, item),
 			markerFace: markerFaceOf(context, item),
+			markerInset: markerInsetOf(context, item),
 			number: ordinalsOf(list, items)[items.indexOf(item)],
 			runs,
 			visible: true,
@@ -252,6 +253,21 @@ function markerColorOf(context: ExtractContext, item: Element) {
 	return parseColor(style.color)?.hex;
 }
 
+/** How far a list item's text starts past where browsers end its outside marker, against its border box: its start padding and border, in px. */
+function markerInsetOf(context: ExtractContext, item: Element) {
+	const style = context.styleOf(item);
+	if (style["list-style-position"] === "inside") {
+		return undefined;
+	}
+
+	const side = isRightToLeft(context, item) ? "right" : "left";
+	const inset =
+		(parseFloat(style[`padding-${side}`]) +
+			parseFloat(style[`border-${side}-width`])) *
+		context.scaleAt(item);
+	return inset > 0 ? inset : undefined;
+}
+
 /** The font and size a list item's marker shows in, from its ::marker's style (which inherits the item's). */
 function markerFaceOf(context: ExtractContext, item: Element): MarkerFace {
 	const style = context.markers.get(item) ?? context.styleOf(item);
@@ -330,6 +346,7 @@ function listParagraphs(
 			marker: style["list-style-type"],
 			markerColor: markerColorOf(context, item),
 			markerFace: markerFaceOf(context, item),
+			markerInset: markerInsetOf(context, item),
 			number: numbers[index],
 			visible: context.opacityOf(item) >= MIN_OPACITY,
 		};

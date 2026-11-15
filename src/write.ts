@@ -1040,7 +1040,10 @@ function listParagraphs(
 								type: "number",
 							}
 						: { characterCode: marker.code, indent },
-			hang: marker ? markerWidthOf(paragraph, fallback, fonts) : markerGap,
+			hang: marker
+				? markerWidthOf(paragraph, fallback, fonts) +
+					(paragraph.markerInset ?? 0)
+				: markerGap,
 			indentLevel: level || undefined,
 			lineHeight: paragraph.lineHeight,
 			marker: marker?.kind,
@@ -1320,7 +1323,11 @@ function markerGapOf(list: ListItem, fonts: FontBook) {
 		0,
 		...list.paragraphs
 			.filter(({ bullet, level }) => bullet && level === 0)
-			.map((paragraph) => markerWidthOf(paragraph, fallback, fonts)),
+			.map(
+				(paragraph) =>
+					markerWidthOf(paragraph, fallback, fonts) +
+					(paragraph.markerInset ?? 0),
+			),
 	);
 }
 
