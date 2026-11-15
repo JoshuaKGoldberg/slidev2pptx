@@ -667,6 +667,7 @@ export function runStyle(
 					: 0)) *
 			zoom,
 		pad: false,
+		raise: raiseOf(context, element),
 		script: scriptOf(style, element),
 		shadow,
 		size: parseFloat(style["font-size"]) * zoom,
@@ -934,4 +935,29 @@ function underlineOf(
 		color: color === textColor ? undefined : color,
 		style: UNDERLINE_STYLES[style["text-decoration-style"]] ?? "single",
 	};
+}
+
+/** How far above its line relative positioning draws an inline element or its inline ancestors in its block, in px, if it does. */
+function raiseOf(context: ExtractContext, element: Element) {
+	let raise = 0;
+	for (
+		let node: Element | null = element;
+		node && context.isInline(node);
+		node = node.parentElement
+	) {
+		const style = context.styleOf(node);
+		if (style.position === "relative") {
+			const top = style.top;
+			const bottom = style.bottom;
+			raise +=
+				top && top !== "auto"
+					? -context.resolve(node, top)
+					: bottom && bottom !== "auto"
+						? context.resolve(node, bottom)
+						: 0;
+		}
+	}
+
+	const scaled = raise * context.scaleAt(element);
+	return Math.abs(scaled) >= 0.01 ? scaled : undefined;
 }

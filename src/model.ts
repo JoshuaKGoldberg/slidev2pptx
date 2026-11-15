@@ -161,6 +161,8 @@ export interface Run {
 	/** 0-100 */
 	transparency: number;
 	underline?: Underline;
+	/** px the browser draws it above its line by relative positioning, which leaves its line as it was. */
+	raise?: number;
 	/** Whether the text shows capitalized (CSS text-transform: uppercase); the text keeps its source casing. */
 	upper: boolean;
 }

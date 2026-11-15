@@ -316,6 +316,16 @@ describe(writePptx, () => {
 		},
 	);
 
+	it("writes an emoji the browser raises as far as PowerPoint draws emoji at its own place", async () => {
+		const lowered = await slideXml([textItem([[run("Hi 🤩")]])]);
+		const raised = await slideXml([
+			textItem([[run("Hi "), run("🤩", { raise: 0.12 * 24 })]]),
+		]);
+
+		expect(lowered).toMatch(/baseline="-/);
+		expect(raised).not.toMatch(/baseline="-/);
+	});
+
 	it("centers a loosened paragraph's lines on the browser's by raising its box half their drift", async () => {
 		const topOf = async (lines: number) => {
 			const xml = await slideXml([

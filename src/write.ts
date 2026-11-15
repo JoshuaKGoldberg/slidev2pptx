@@ -626,7 +626,10 @@ function createItemWriter({
 		const firstRun = firstRunOf(paragraphs);
 		// PowerPoint draws emoji higher on their baseline than browsers: text that's all emoji is lowered as a box, and emoji among text each by an offset.
 		const emojiOnly = item.kind === "text" && paragraphs.every(isEmojiOnly);
-		const drop = emojiOnly ? EMOJI_GLYPH_RISE * firstRun.size : 0;
+		const drop =
+			emojiOnly && !raisedLikePowerPoint(firstRun)
+				? EMOJI_GLYPH_RISE * firstRun.size
+				: 0;
 		const firstRuns = paragraphs[0]?.runs ?? [];
 		const exactSpacing = spacesExactly(firstRuns, !emojiOnly);
 		const pitch = exactSpacing
@@ -1550,6 +1553,10 @@ function exactPitchOf(pitch: number, runs: Run[]) {
 	return written;
 }
 
+/** Whether the browser draws a run raised about as far above its line as PowerPoint draws emoji, which PowerPoint then needs no lowering to match. */
+const raisedLikePowerPoint = (run: Run) =>
+	(run.raise ?? 0) >= (EMOJI_GLYPH_RISE / 2) * run.size;
+
 /** A run that may be an emoji lowered by an offset from its line's baseline. */
 type LoweredRun = Run & { lowered?: boolean };
 
@@ -1598,7 +1605,7 @@ function splitEmoji(run: Run): LoweredRun[] {
 	return parts.map(({ emoji, text }, index) => ({
 		...run,
 		lineBreak: index ? undefined : run.lineBreak,
-		lowered: emoji || undefined,
+		lowered: (emoji && !raisedLikePowerPoint(run)) || undefined,
 		text,
 	}));
 }

@@ -1147,6 +1147,27 @@ describe(extractState, () => {
 		]);
 	});
 
+	it("raises a run drawn above its line by relative positioning, without moving its line", async () => {
+		const plain = await extract(`<p style="font-size: 20px">a b</p>`);
+		const { items } = await extract(
+			`<p style="font-size: 20px">a <span style="position: relative; top: -0.12em">b</span></p>`,
+		);
+
+		expect(items).toEqual([
+			expect.objectContaining({
+				baselines: (plain.items[0] as { baselines: number[] }).baselines,
+				paragraphs: [
+					{
+						runs: [
+							expect.objectContaining({ raise: undefined, text: "a " }),
+							expect.objectContaining({ raise: 2.4, text: "b" }),
+						],
+					},
+				],
+			}),
+		]);
+	});
+
 	it("colors a marker as its ::marker when it has a color", async () => {
 		const { items } = await extract(
 			`<ul><li>black</li></ul>`,
