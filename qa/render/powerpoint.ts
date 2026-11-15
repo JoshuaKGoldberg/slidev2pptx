@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { ensureKerning } from "./kerning.ts";
+
 const run = promisify(execFile);
 
 /** PowerPoint is sandboxed: files in its own container need no file-access prompts. */
@@ -36,7 +38,14 @@ export async function renderWithPowerPoint(pptx: string, directory: string) {
 	await fs.copyFile(pptx, input);
 
 	try {
-		await withLock(() => exportPdf(input, pdf, name));
+		await withLock(async () => {
+			await ensureKerning(
+				CONTAINER,
+				(deck, output) => exportPdf(deck, output, path.basename(deck, ".pptx")),
+				async () => (await powerPointProcess())?.pid,
+			);
+			await exportPdf(input, pdf, name);
+		});
 		await run("pdftoppm", [
 			"-r",
 			String(DPI),
