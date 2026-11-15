@@ -703,6 +703,22 @@ describe(writePptx, () => {
 		).toContain('<a:pPr algn="l" marL="304800" indent="-304800">');
 	});
 
+	it("hangs a decimal marker by its widest number's width when its font is loaded", async () => {
+		expect(
+			await slideXml([
+				listItem(
+					[9, 10].map((number) =>
+						listParagraph(`Item ${String(number)}`, {
+							marker: "decimal",
+							number,
+							runs: [run(`Item ${String(number)}`, { font: "Measured" })],
+						}),
+					),
+				),
+			]),
+		).toContain('marL="609600" indent="-609600"');
+	});
+
 	it("nests a paragraph a level deeper when its list is nested", async () => {
 		expect(
 			await slideXml([

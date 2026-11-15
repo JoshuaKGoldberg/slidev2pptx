@@ -1090,12 +1090,15 @@ function markerGapOf(list: ListItem, fonts: FontBook) {
 
 	const firstRun = firstRunOf(list.paragraphs);
 	const { font, size } = first.markerFace ?? firstRun;
-	const text = /^["']/.test(first.marker)
-		? csstree.string.decode(first.marker)
-		: undefined;
-	const advance = text ? fonts.advance(font, text) : undefined;
-	if (advance !== undefined) {
-		return advance * size;
+	// Browsers draw a decimal marker as its number, a period, and a space.
+	const texts = /^["']/.test(first.marker)
+		? [csstree.string.decode(first.marker)]
+		: first.marker === "decimal"
+			? outermost.map(({ number }) => `${String(number)}. `)
+			: [];
+	const advances = texts.map((text) => fonts.advance(font, text));
+	if (advances.length && advances.every((advance) => advance !== undefined)) {
+		return Math.max(...advances) * size;
 	}
 
 	return markerFor(first.marker)?.kind === "number"
