@@ -43,12 +43,13 @@ A full rerun of all 77 decks from the build step, with every fix above, against 
 | Fail    |     42 |    29 |
 
 608 states scored better by more than 0.003 SSIM and 186 worse; 156 states' verdicts improved and 69 got worse (68 from pass to review, 1 from pass to fail).
-The regressions cluster into four causes, carried into round 4:
+The regressions cluster into these causes:
 
 - A wrapped box sized to its widest line by its kerned width, which PowerPoint for Mac wraps when it drops kerning: the one new failure (2022-06-15 048-01).
-- Emoji-only text boxes drawn about 3px low (the WebXR Karaoke and Real-Time Nostalgia decks' diagrams).
-- Some single-line titles drawn about 2px low, mostly "TypeScript 💙 ESLint" title slides shared by the static analysis talks.
-- Lines drifting right after a run boundary in a title (2021-02-22 017-01).
+  Fixed in round 4.
+- Turned text boxes with emoji drawn about 3px low (the WebXR Karaoke and Real-Time Nostalgia decks' diagrams), as their browser baseline was modeled from the pitch and emoji size written to PowerPoint.
+  Fixed in round 4.
+- Titles that moved or drifted sideways ("TypeScript 💙 ESLint", 2020-10-09 042-01, 2021-02-22 017-01): the same slide built before and after round 3 writes identical text boxes, which render alike in one PowerPoint session, so these are PowerPoint dropping pair kerning between sessions.
 
 Round 3 measured only Slidev against slidev2pptx.
 Comparing each slide's last state against the original deck showed that the converter's own losses dwarf what's left: inherited backgrounds and layout and master shapes were dropped, and centered titles were squeezed by margins inferred from where they were drawn.
