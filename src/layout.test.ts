@@ -329,6 +329,47 @@ describe(createLayout, () => {
 		});
 	});
 
+	it.each([
+		{
+			// An 8200x100 red PNG, as a pattern fill.
+			inner: `<path d="M0 0H40V20H0Z" fill="url(#fill)"/><defs><pattern id="fill" patternUnits="userSpaceOnUse" width="40" height="20"><image width="40" height="20" preserveAspectRatio="none" href="/wide.png"/></pattern></defs>`,
+			mostly: { blue: false, red: true },
+			src: "/wide.png",
+		},
+		{
+			// A 20x10 GIF, red on its left half and blue on its right.
+			inner: `<image width="40" height="20" preserveAspectRatio="none" xlink:href="/halves.gif"/>`,
+			mostly: { blue: true, red: true },
+			src: "/halves.gif",
+		},
+	])(
+		"rasterizes an inline SVG that draws $src by its path",
+		async ({ inner, mostly }) => {
+			const prepared = layout.prepare(
+				1,
+				`<svg id="drawing" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 40 20" style="display: block; width: 40px; height: 20px">${inner}</svg>`,
+				{ rules },
+				{},
+			);
+			const png =
+				(await layout.rasterize(
+					prepared,
+					{ sheets },
+					{ box: { height: 20, width: 40, x: 0, y: 0 }, selector: "#drawing" },
+				)) ?? Buffer.alloc(0);
+			const color = await layout.averageColor(png);
+			const [red, green, blue] = [0, 2, 4].map((index) =>
+				parseInt(color.slice(index, index + 2), 16),
+			);
+
+			// Without its image, it'd be white.
+			expect({ blue: blue > 96, green: green > 96, red: red > 96 }).toEqual({
+				...mostly,
+				green: false,
+			});
+		},
+	);
+
 	it("renders an image to a PNG at twice its size", async () => {
 		const png = (await layout.toPng("/shape.svg")) ?? Buffer.alloc(0);
 

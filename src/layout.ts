@@ -288,6 +288,22 @@ export function createLayout({
 			}
 		}
 
+		// takumi draws an inline SVG's images only from data URLs.
+		for (const image of copy.querySelectorAll("svg image")) {
+			const src =
+				image.getAttribute("href") ?? image.getAttribute("xlink:href");
+			const data =
+				src && !src.startsWith("data:") ? await stillOf(src) : undefined;
+			const format = data && imageFormat(data);
+			if (format) {
+				image.removeAttribute("xlink:href");
+				image.setAttribute(
+					"href",
+					`data:image/${format === "svg" ? "svg+xml" : format};base64,${data.toString("base64")}`,
+				);
+			}
+		}
+
 		for (const element of [copy, ...copy.querySelectorAll("[style]")]) {
 			const style = element.getAttribute("style");
 			if (style) {
