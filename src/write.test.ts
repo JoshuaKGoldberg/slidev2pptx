@@ -993,6 +993,18 @@ describe(writePptx, () => {
 		]);
 	});
 
+	it("starts a struck item with an unstruck empty run, which PowerPoint formats its marker by", async () => {
+		const xml = await slideXml([
+			listItem([
+				listParagraph("Gone", { runs: [run("Gone", { strike: true })] }),
+			]),
+		]);
+
+		expect(xml).toMatch(
+			/<a:r><a:rPr lang="en-US"(?![^>]*strike)[^>]*>.*?<a:t>\u200B<\/a:t><\/a:r><a:r><a:rPr lang="en-US"[^>]*strike="sngStrike"[^>]*>.*?<a:t>Gone<\/a:t>/,
+		);
+	});
+
 	it("sizes a numbered marker by its item's text when the item starts with an emoji lowered among text", async () => {
 		const xml = await slideXml([
 			listItem([listParagraph("✅ Done", { marker: "decimal" })]),

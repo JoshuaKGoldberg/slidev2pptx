@@ -120,6 +120,9 @@ const EXPORT_PIXEL_RATIO = 2;
 /** How wide, in px, Blink's dashes start being twice their line's width long, with gaps as wide, rather than three times, with gaps twice. */
 const THICK_DASH_WIDTH = 3;
 
+/** An empty run's text: one with none would be left out. */
+const ZERO_WIDTH_SPACE = "\u200B";
+
 /** PowerPoint's single line spacing, as a multiple of the font size. */
 const SINGLE_LINE_PITCH = 1.2;
 
@@ -491,6 +494,19 @@ function createItemWriter({
 						run.text = run.text.replace(/[ \t\n\r\f]+$/, "");
 					}
 				}
+			}
+
+			// PowerPoint strikes a marker through with its paragraph's first run, where CSS never strikes one, so an empty unstruck run goes first.
+			const [first] = pieces;
+			if (paragraph.bullet && first.strike) {
+				pieces.unshift({
+					...first,
+					href: undefined,
+					lineBreak: undefined,
+					lowered: false,
+					strike: false,
+					text: ZERO_WIDTH_SPACE,
+				});
 			}
 
 			const baseSize = baseSizeOf(pieces);
