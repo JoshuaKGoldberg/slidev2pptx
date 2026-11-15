@@ -1,6 +1,6 @@
 <h1 align="center">Slidev2pptx</h1>
 
-<p align="center">Builds native, editable PowerPoint files from Slidev decks.</p>
+<p align="center">Builds native, editable PowerPoint files from Slidev decks. 🛝</p>
 
 <p align="center">
 	<!-- prettier-ignore-start -->
