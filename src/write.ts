@@ -451,7 +451,7 @@ function createItemWriter({
 
 			const baseSize = baseSizeOf(pieces);
 			const pitch = paragraph.lineHeight ?? lineHeight;
-			const exact = pitch > 0 && hasMixedSizes(pieces);
+			const exact = pitch > 0 && hasMixedFaces(pieces);
 			const multiple = exact ? undefined : lineSpacingOf(pitch, baseSize);
 			return pieces.map((run, runIndex) => {
 				// Links that show no underline get transparent hotspots instead, as PowerPoint underlines linked text.
@@ -517,17 +517,17 @@ function createItemWriter({
 		name: string,
 		visibleParagraphs: boolean[] | undefined,
 	) => {
-		// Lines mixing font sizes grow taller than their CSS line height, as each size's half-leading differs, so measure them.
+		// Lines mixing font sizes or fonts grow taller than their CSS line height, as each face's half-leading differs, so measure them.
 		const mixedPitch =
 			item.kind === "text" &&
 			item.baselines &&
-			item.paragraphs.some(({ runs }) => hasMixedSizes(runs))
+			item.paragraphs.some(({ runs }) => hasMixedFaces(runs))
 				? measuredPitch(item.baselines, item.style.lineHeight)
 				: undefined;
 		const style =
 			item.kind === "code"
 				? { ...item.style, lineHeight: codePitch(item) }
-				: mixedPitch && hasMixedSizes(item.paragraphs[0]?.runs ?? [])
+				: mixedPitch && hasMixedFaces(item.paragraphs[0]?.runs ?? [])
 					? { ...item.style, lineHeight: mixedPitch }
 					: item.style;
 		const rotation = item.kind === "text" ? item.rotation : 0;
@@ -550,7 +550,7 @@ function createItemWriter({
 			item,
 			style,
 			rotation,
-			hasMixedSizes(paragraphs[0]?.runs ?? []),
+			hasMixedFaces(paragraphs[0]?.runs ?? []),
 			firstLineLargestRun(paragraphs),
 			fonts,
 		);
@@ -1225,13 +1225,19 @@ const baseSizeOf = (runs: Run[]) =>
 	(runs.find((run) => !run.script) ?? runs[0]).size;
 
 /**
- * Whether a paragraph mixes font sizes, outside of super- and subscripts.
- * CSS gives every line at least the paragraph's line height, but PowerPoint
- * scales a spacing multiple by each line's largest font, which would squeeze
- * lines of only smaller text.
+ * Whether a paragraph mixes font sizes or fonts, outside of super- and
+ * subscripts and the spacers that pad text into place. CSS gives every line
+ * at least the paragraph's line height, growing it where each face's
+ * half-leading sits apart, but PowerPoint scales a spacing multiple by each
+ * line's largest font, which would squeeze lines of only smaller text.
  */
-const hasMixedSizes = (runs: Run[]) =>
-	new Set(runs.filter((run) => !run.script).map((run) => run.size)).size > 1;
+const hasMixedFaces = (runs: Run[]) => {
+	const faces = runs.filter((run) => !run.script && !run.pad);
+	return (
+		new Set(faces.map((run) => run.size)).size > 1 ||
+		new Set(faces.map((run) => run.font)).size > 1
+	);
+};
 
 /**
  * The geometry to outline for a CSS border inside a box: PowerPoint centers

@@ -290,14 +290,24 @@ describe(writePptx, () => {
 		expect(xml).not.toContain("<a:spcPct");
 	});
 
-	it("spaces lines by their measured pitch when a paragraph mixes font sizes", async () => {
+	it.each([
+		["font sizes", [run("“", { size: 36 }), run("Quoted text")]],
+		["fonts", [run("Run "), run("code", { font: "Mono" })]],
+	])(
+		"spaces lines by their measured pitch when a paragraph mixes %s",
+		async (_, runs) => {
+			expect(
+				await slideXml([textItem([runs], { baselines: [40, 84, 128] })]),
+			).toContain('<a:lnSpc><a:spcPts val="4400"/></a:lnSpc>');
+		},
+	);
+
+	it("spaces lines as a multiple when a paragraph's fonts differ only in a spacer", async () => {
 		expect(
 			await slideXml([
-				textItem([[run("“", { size: 36 }), run("Quoted text")]], {
-					baselines: [40, 84, 128],
-				}),
+				textItem([[run("   ", { font: "Mono", pad: true }), run("Indented")]]),
 			]),
-		).toContain('<a:lnSpc><a:spcPts val="4400"/></a:lnSpc>');
+		).toContain('<a:lnSpc><a:spcPct val="125000"/></a:lnSpc>');
 	});
 
 	it("spaces lines as a multiple when a paragraph's sizes differ only in a superscript", async () => {
