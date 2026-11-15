@@ -96,6 +96,7 @@ export function convertText(
 	}
 
 	const lines = linesByParagraph(rendered);
+	const tops = topsByParagraph(rendered);
 	const blocks: string[] = [];
 	let list: undefined | { items: string[]; ordered: boolean; start: number };
 	let lastSize = 18;
@@ -138,7 +139,10 @@ export function convertText(
 				? undefined
 				: (spacingOf(propertyChildOf(levels, "a:spcBef"), size) ??
 					(previous && first
-						? Math.max(0, first.y - previous.y - lineHeight)
+						? Math.max(
+								0,
+								(tops.get(index) ?? first.y) - previous.y - lineHeight,
+							)
 						: undefined));
 		const spaceAfter = spacingOf(propertyChildOf(levels, "a:spcAft"), size);
 
@@ -356,6 +360,8 @@ function convertRuns(
 		if (child.tagName === "a:br") {
 			// undefined marks a line break.
 			pieces.push(undefined);
+			// pptx-svg numbers line breaks among a paragraph's runs.
+			runIndex += 1;
 			continue;
 		}
 
@@ -431,14 +437,13 @@ function clickContent(content: string, visibility: undefined | Visibility) {
 
 function fallbackStyle(run: Element, fontScale: number): RunStyle {
 	const properties = childNamed(run, "a:rPr");
+	const strike = properties?.getAttribute("strike") ?? "noStrike";
 	return {
 		bold: properties?.getAttribute("b") === "1",
 		italic: properties?.getAttribute("i") === "1",
 		size:
 			(Number(properties?.getAttribute("sz") ?? 1800) / 100) * (fontScale || 1),
-		strike:
-			/strike/i.test(properties?.getAttribute("strike") ?? "noStrike") &&
-			properties?.getAttribute("strike") !== "noStrike",
+		strike: /strike/i.test(strike) && strike !== "noStrike",
 		underline:
 			!!properties?.getAttribute("u") &&
 			properties.getAttribute("u") !== "none",
@@ -546,6 +551,21 @@ function renderRun(
 	const span = `<span style="${css}">${escapeText(text)}</span>`;
 
 	return href ? `<a href="${escapeAttribute(href)}">${span}</a>` : span;
+}
+
+/** Where pptx-svg drew each paragraph's first line, counting the empty lines its leading line breaks take, as HTML line breaks keep them. */
+function topsByParagraph(rendered: Element | undefined) {
+	const tops = new Map<number, number>();
+	for (const line of rendered?.children ?? []) {
+		const index = Number(
+			line.getAttribute("data-ooxml-para-idx") ?? Number.NaN,
+		);
+		if (!Number.isNaN(index) && !tops.has(index)) {
+			tops.set(index, Number(line.getAttribute("y")));
+		}
+	}
+
+	return tops;
 }
 
 /** Text with its repeated spaces kept: Vue condenses runs of white space, so all but the last become no-break spaces. */

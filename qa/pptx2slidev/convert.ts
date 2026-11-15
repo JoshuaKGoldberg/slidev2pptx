@@ -602,9 +602,17 @@ async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
 		/^ppt\/(?:slides|slideLayouts|slideMasters)\/[^/]+\.xml$/.test(name),
 	)) {
 		const original = (await zip.file(name)?.async("string")) ?? "";
-		const filled = withGroupFills(original);
-		if (filled !== original) {
-			rewrites.set(name, filled);
+		let rewritten = withGroupFills(original);
+		// PowerPoint matches a layout's placeholder to its master's by type, where pptx-svg matches by index
+		// first, so a layout's second content placeholder (idx 2) would take the master's date's 12pt text.
+		if (name.startsWith("ppt/slideMasters/")) {
+			rewritten = rewritten.replaceAll(/<p:ph\b[^>]*>/g, (tag) =>
+				tag.replace(/ idx="\d+"/, ""),
+			);
+		}
+
+		if (rewritten !== original) {
+			rewrites.set(name, rewritten);
 		}
 	}
 
