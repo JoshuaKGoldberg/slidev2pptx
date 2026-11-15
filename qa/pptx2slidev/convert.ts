@@ -17,7 +17,11 @@ import type { SlideTiming, Visibility } from "./timing.ts";
 
 import { createFontResolver } from "./fonts.ts";
 import { IDENTITY } from "./geometry.ts";
-import { inheritedLevels, loadInheritance } from "./inheritance.ts";
+import {
+	inheritedFrame,
+	inheritedLevels,
+	loadInheritance,
+} from "./inheritance.ts";
 import { type ImageMetrics, imageMetrics } from "./media.ts";
 import { withoutEmptyTables } from "./sanitize.ts";
 import { convertShape } from "./shapes.ts";
@@ -587,6 +591,12 @@ function staticTiming(): SlideTiming {
  * @see https://github.com/t-ujiie-g/pptx-svg/issues/88
  */
 async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
+	// Placeholder pictures without frames take the frames they inherit, as pptx-svg skips them.
+	const framed = await Promise.all(
+		Object.keys(zip.files)
+			.filter((name) => /^ppt\/slides\/[^/]+\.xml$/.test(name))
+			.map((name) => framePlaceholderPictures(zip, name)),
+	);
 	const rewrites = new Map<string, string>();
 	const part = "ppt/presentation.xml";
 	const xml = (await zip.file(part)?.async("string")) ?? "";
@@ -616,7 +626,7 @@ async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
 		}
 	}
 
-	if (!rewrites.size) {
+	if (!rewrites.size && !framed.includes(true)) {
 		return bytes.buffer.slice(
 			bytes.byteOffset,
 			bytes.byteOffset + bytes.byteLength,
@@ -628,6 +638,59 @@ async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
 	}
 
 	return await zip.generateAsync({ type: "arraybuffer" });
+}
+
+/** Writes the frames a slide's placeholder pictures inherit into those without one; returns whether it changed the slide. */
+async function framePlaceholderPictures(zip: JSZip, part: string) {
+	const xml = (await zip.file(part)?.async("string")) ?? "";
+	if (!xml.includes("<p:pic") || !xml.includes("<p:ph")) {
+		return false;
+	}
+
+	const pictures = descendantsNamed(
+		parseXml(xml).documentElement,
+		"p:pic",
+	).flatMap((picture) => {
+		const id = descendantNamed(picture, "p:cNvPr")?.getAttribute("id");
+		const placeholder = descendantNamed(
+			childNamed(picture, "p:nvPicPr"),
+			"p:ph",
+		);
+		return id &&
+			placeholder &&
+			!childNamed(childNamed(picture, "p:spPr"), "a:xfrm")
+			? [{ id, placeholder }]
+			: [];
+	});
+	if (!pictures.length) {
+		return false;
+	}
+
+	const sources = await loadInheritance(zip, part, undefined, (name) =>
+		relationships(zip, name),
+	);
+	let framed = xml;
+	// Alternate content can repeat a picture, but only its first copy is found by its id.
+	for (const [id, placeholder] of new Map(
+		pictures.map(({ id, placeholder }) => [id, placeholder]),
+	)) {
+		const frame = inheritedFrame(sources, placeholder);
+		// The picture's shape properties are the first after its id, and its frame goes first in them.
+		const at = framed.search(new RegExp(`<p:cNvPr\\b[^>]*\\bid="${id}"`));
+		const opening = /<p:spPr\b([^>]*?)(\/?)>/g;
+		opening.lastIndex = at;
+		const match = at >= 0 ? opening.exec(framed) : null;
+		if (frame && match) {
+			framed = `${framed.slice(0, match.index)}<p:spPr${match[1]}>${frame.outerHTML}${match[2] ? "</p:spPr>" : ""}${framed.slice(opening.lastIndex)}`;
+		}
+	}
+
+	if (framed === xml) {
+		return false;
+	}
+
+	zip.file(part, framed);
+	return true;
 }
 
 async function relationships(zip: JSZip, part: string) {

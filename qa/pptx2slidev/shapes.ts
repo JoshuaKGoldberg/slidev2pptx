@@ -6,7 +6,12 @@ import type { SlideTiming } from "./timing.ts";
 import { EMU_PER_PX, multiply, parseTransform, place } from "./geometry.ts";
 import { escapeAttribute, px, styleOf } from "./html.ts";
 import { convertText } from "./text.ts";
-import { attributeOf, childNamed, descendantNamed } from "./xml.ts";
+import {
+	attributeOf,
+	childNamed,
+	descendantNamed,
+	descendantsNamed,
+} from "./xml.ts";
 
 export interface SlideContext extends TextContext {
 	/** Copies a media file from the .pptx into the deck, returning its public URL. */
@@ -148,7 +153,19 @@ function convertAutoshape(
 	const rendered = [...shape.children].find(
 		(child) => child.tagName === "text",
 	);
-	const fontScale = Number(shape.getAttribute("data-ooxml-font-scale") ?? -1);
+	// PowerPoint shrinks text by the scale its autofit recorded, which pptx-svg reports only sometimes.
+	// That's only trusted for sizes the slide sets, as pptx-svg can inherit others from the wrong master placeholder.
+	const reported = Number(shape.getAttribute("data-ooxml-font-scale") ?? -1);
+	const recorded = descendantsNamed(body, "a:r").every((run) =>
+		childNamed(run, "a:rPr")?.hasAttribute("sz"),
+	)
+		? Number(
+				childNamed(childNamed(body, "a:bodyPr"), "a:normAutofit")?.getAttribute(
+					"fontScale",
+				) ?? -1,
+			)
+		: -1;
+	const fontScale = reported > 0 ? reported : recorded;
 	const box = [...shape.children].find((child) => child.tagName === "rect");
 	// pptx-svg writes -1 for an unset inset, which is PowerPoint's default 0.1".
 	const declaredInset = Number(

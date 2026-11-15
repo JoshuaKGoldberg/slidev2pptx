@@ -100,6 +100,20 @@ export function inheritedLevels(
 	return levels.filter((element): element is Element => !!element);
 }
 
+/** The frame a slide placeholder without one inherits: its layout placeholder's, else its master's. */
+export function inheritedFrame(
+	sources: InheritanceSources,
+	placeholder: Element,
+) {
+	const type = attributeOf(placeholder, "type") ?? "body";
+	return [
+		matchingPlaceholder(sources.layout, type, attributeOf(placeholder, "idx")),
+		matchingPlaceholder(sources.master, type, undefined),
+	]
+		.map((shape) => childNamed(childNamed(shape, "p:spPr"), "a:xfrm"))
+		.find((frame) => frame !== undefined);
+}
+
 function levelOf(shape: Element | undefined, name: string) {
 	return childNamed(
 		childNamed(descendantNamed(shape, "p:txBody"), "a:lstStyle"),
