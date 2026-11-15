@@ -1,4 +1,5 @@
 import type { createFontResolver } from "./fonts.ts";
+import type { Theme } from "./theme.ts";
 import type { Visibility } from "./timing.ts";
 
 import { inlineExtentOf } from "../../src/fonts.ts";
@@ -32,6 +33,8 @@ export interface TextContext {
 	inheritedBody: (body: Element | undefined) => Element[];
 	/** Resolves a relationship id to its target, for hyperlinks. */
 	resolveLink: (id: string) => string | undefined;
+	/** The slide's theme, for formatting pptx-svg leaves unresolved. */
+	theme: Theme;
 	/** Wraps HTML in Slidev click directives for a visibility. */
 	withVisibility: (html: string, visibility: undefined | Visibility) => string;
 }
@@ -650,7 +653,8 @@ function renderRun(
 				? `${px(outlineWidth / EMU)} #${outlineColor}`
 				: undefined,
 		"background-color": highlight ? `#${highlight}` : undefined,
-		color: style.color,
+		color:
+			style.color ?? context.theme.color(childNamed(properties, "a:solidFill")),
 		"font-family": font
 			? `'${font.family.replaceAll("'", "\\'")}'${TEXT_PICTOGRAPH.test(text) ? `, '${EMOJI_FONT}'` : ""}`
 			: undefined,
@@ -745,7 +749,13 @@ function styleOfRun(run: Element): RunStyle {
 		bold:
 			run.getAttribute("data-ooxml-bold") === "1" ||
 			run.getAttribute("font-weight") === "bold",
-		color: color ? `#${color}` : (fill ?? undefined),
+		// pptx-svg reports "none" for colors it can't resolve, like preset ones.
+		color:
+			color && color !== "none"
+				? `#${color}`
+				: fill && fill !== "none"
+					? fill
+					: undefined,
 		font:
 			attributeOf(run, "data-ooxml-run-font") ??
 			attributeOf(run, "font-family")?.split(",")[0].trim(),

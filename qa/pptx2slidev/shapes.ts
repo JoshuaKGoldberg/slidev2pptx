@@ -1,7 +1,6 @@
 import type { Matrix, Placement } from "./geometry.ts";
 import type { ImageMetrics } from "./media.ts";
 import type { TextContext } from "./text.ts";
-import type { Theme } from "./theme.ts";
 import type { SlideTiming } from "./timing.ts";
 
 import { EMU_PER_PX, multiply, parseTransform, place } from "./geometry.ts";
@@ -24,8 +23,6 @@ export interface SlideContext extends TextContext {
 	imageMetrics: (relationshipId: string) => ImageMetrics | undefined;
 	/** The slide XML's shape elements by their cNvPr id. */
 	raw: Map<string, Element>;
-	/** The slide's theme, for formatting pptx-svg leaves unresolved. */
-	theme: Theme;
 	timing: SlideTiming;
 }
 
