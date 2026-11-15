@@ -124,6 +124,7 @@ export function convertText(
 	const blocks: string[] = [];
 	let list: undefined | { items: string[]; ordered: boolean; start: number };
 	let lastSize = 18;
+	let lastTrim = 0;
 	const numbering = new Map<number, number>();
 
 	const flushList = () => {
@@ -212,18 +213,18 @@ export function convertText(
 		const paragraphFont = main?.font
 			? context.fonts.resolve(main.font)
 			: undefined;
-		const shift = paragraphFont
-			? baselineShift(context, {
-					exact:
-						childNamed(propertyChildOf(levels, "a:lnSpc"), "a:spcPts") !==
-						undefined,
-					family: paragraphFont.family,
-					italic: paragraphFont.italic ?? runs.first?.italic ?? false,
-					lineHeight,
-					size,
-					weight: paragraphFont.weight ?? (runs.first?.bold ? 700 : 400),
-				})
-			: 0;
+		const line = paragraphFont && {
+			exact:
+				childNamed(propertyChildOf(levels, "a:lnSpc"), "a:spcPts") !==
+				undefined,
+			family: paragraphFont.family,
+			italic: paragraphFont.italic ?? runs.first?.italic ?? false,
+			lineHeight,
+			size,
+			weight: paragraphFont.weight ?? (runs.first?.bold ? 700 : 400),
+		};
+		const shift = line ? baselineShift(context, line) : 0;
+		lastTrim = line ? lastLineTrim(context, line) : 0;
 		const style = styleOf({
 			"font-family": paragraphFont ? `'${paragraphFont.family}'` : undefined,
 			"font-size": px(size),
@@ -302,6 +303,13 @@ export function convertText(
 	}
 
 	flushList();
+	// PowerPoint ends a body at its last line's baseline and descent, where browsers keep the rest of its line height,
+	// which lifted bottom-anchored and centered text.
+	const last = blocks.length - 1;
+	if (last >= 0 && lastTrim >= 0.1) {
+		blocks[last] = withBottomMargin(blocks[last], -lastTrim);
+	}
+
 	return blocks.join("");
 }
 
@@ -880,4 +888,42 @@ function textShadowOf(shadow: Element | undefined) {
 	const blur = Number(shadow.getAttribute("blurRad") ?? 0) / EMU;
 	const round = (value: number) => Math.round(value * 100) / 100;
 	return `${px(round(distance * Math.cos(direction)))} ${px(round(distance * Math.sin(direction)))} ${px(round(blur))} rgba(${channels},${String(round(alpha))})`;
+}
+
+/** How much of a line's height PowerPoint leaves below its descent, which it doesn't count at the end of a body: the pitch less its baseline and single-spaced descent. */
+function lastLineTrim(
+	context: TextContext,
+	line: Parameters<typeof baselineShift>[1],
+) {
+	const metrics = context.fonts.metrics(line.family, line.weight, line.italic);
+	if (!metrics) {
+		return 0;
+	}
+
+	const baseline = firstBaseline(
+		metrics,
+		line.size,
+		line.lineHeight,
+		line.exact ? metrics.baseline : SPACED_BASELINE,
+	);
+	const descent = metrics.singleDescent * SINGLE_LINE * line.size;
+	return Math.max(
+		0,
+		Math.round((line.lineHeight - baseline - descent) * 100) / 100,
+	);
+}
+
+/** A block's HTML with its last paragraph or item's bottom margin set. */
+function withBottomMargin(html: string, margin: number) {
+	const at = Math.max(html.lastIndexOf("<p "), html.lastIndexOf("<li "));
+	const style = html.indexOf('style="', at);
+	if (at < 0 || style < 0) {
+		return html;
+	}
+
+	const end = html.indexOf('"', style + 7);
+	const declarations = html
+		.slice(style + 7, end)
+		.replace(/;?margin-bottom:[^;]*/, "");
+	return `${html.slice(0, style + 7)}${declarations};margin-bottom:${px(margin)}${html.slice(end)}`;
 }
