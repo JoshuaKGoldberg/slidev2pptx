@@ -291,6 +291,59 @@ describe(writePptx, () => {
 		expect(xml).not.toContain("<a:spcPct");
 	});
 
+	it.each([
+		// At single spacing (1.2 x 24px), where PowerPoint's first baseline flips with the size, the pitch is loosened 2%.
+		[28.8, "2938"],
+		[28.6, "2938"],
+		// Further from it, it's kept.
+		[31.68, "3168"],
+		[27, "2700"],
+	])(
+		"spaces lines with lowered emoji exactly at %fpx as %s hundredths of a point",
+		async (lineHeight, hundredths) => {
+			expect(
+				await slideXml([
+					textItem([[run("Hi 🤩")]], {
+						style: { ...style, lineHeight, nowrap: false, wrapWidth: 400 },
+					}),
+				]),
+			).toContain(`<a:lnSpc><a:spcPts val="${hundredths}"/></a:lnSpc>`);
+		},
+	);
+
+	it("centers a loosened paragraph's lines on the browser's by raising its box half their drift", async () => {
+		const topOf = async (lines: number) => {
+			const xml = await slideXml([
+				textItem(
+					[
+						[
+							run("Hi 🤩"),
+							...Array.from({ length: lines - 1 }, () =>
+								run("there", { lineBreak: "forced" }),
+							),
+						],
+					],
+					{
+						baselines: Array.from({ length: lines }, (_, i) => 40 + i * 28.8),
+						style: {
+							...style,
+							lineHeight: 28.8,
+							nowrap: false,
+							wrapWidth: 400,
+						},
+					},
+				),
+			]);
+			// The text box's offset, after the slide's own.
+			return Number(
+				[...(xml ?? "").matchAll(/<a:off x="\d+" y="(-?\d+)"\/>/g)].at(-1)?.[1],
+			);
+		};
+
+		// Three lines drift 2 x 0.576px by the last, so the box rises half that.
+		expect(((await topOf(1)) - (await topOf(3))) / 12700).toBeCloseTo(0.576, 2);
+	});
+
 	it("spaces lines exactly by their measured pitch when a paragraph mixes font sizes", async () => {
 		expect(
 			await slideXml([

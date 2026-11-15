@@ -126,6 +126,12 @@ const SINGLE_LINE_PITCH = 1.2;
 /** How far down its pitch PowerPoint (for Mac) puts a loosely spaced line's baseline, whatever the font (measured 0.740-0.753 over 7 fonts at 110-200%). */
 const SPACED_BASELINE = 0.746;
 
+/** Exact pitches between these shares of single spacing, where PowerPoint's first baseline flips between its rules with the font size (measured over 24-72px). */
+const NEAR_SINGLE = { from: 0.99, to: 1.015 };
+
+/** How much looser than single spacing a pitch near it is written, which PowerPoint places by its loose rule at every size (measured). */
+const LOOSENED_PITCH = 1.02;
+
 /** pptxgenjs swaps a zero shadow blur or offset, or a zero bullet indent, for its defaults, so zero is written as this. */
 const NEAR_ZERO = 0.01;
 
@@ -529,7 +535,8 @@ function createItemWriter({
 					italic: run.italic,
 					lang: run.upper ? UPPERCASE_LANG : undefined,
 					lineSpacing: exact
-						? Math.round(points(pitch) * 100) / 100
+						? Math.round(points(exactPitchOf(pitch, paragraph.runs)) * 100) /
+							100
 						: undefined,
 					lineSpacingMultiple: multiple,
 					outline:
@@ -602,14 +609,29 @@ function createItemWriter({
 		// PowerPoint draws emoji higher on their baseline than browsers: text that's all emoji is lowered as a box, and emoji among text each by an offset.
 		const emojiOnly = item.kind === "text" && paragraphs.every(isEmojiOnly);
 		const drop = emojiOnly ? EMOJI_GLYPH_RISE * firstRun.size : 0;
-		const { height, top } = verticalPlacement(
+		const firstRuns = paragraphs[0]?.runs ?? [];
+		const exactSpacing = spacesExactly(firstRuns, !emojiOnly);
+		const pitch = exactSpacing
+			? exactPitchOf(style.lineHeight, firstRuns)
+			: style.lineHeight;
+		const placed = verticalPlacement(
 			item,
-			style,
+			{ ...style, lineHeight: pitch },
 			rotation,
-			spacesExactly(paragraphs[0]?.runs ?? [], !emojiOnly),
+			exactSpacing,
 			firstLineLargestRun(paragraphs),
 			fonts,
 		);
+		// A loosened pitch drifts each later line down, so a lone paragraph's lines are centered on the browser's.
+		const lines = item.kind === "text" ? (item.baselines?.length ?? 0) : 0;
+		const centering =
+			paragraphs.length === 1 && lines > 1
+				? ((lines - 1) * (pitch - style.lineHeight)) / 2
+				: 0;
+		const { height, top } = {
+			height: placed.height,
+			top: placed.top - centering,
+		};
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
 		// PowerPoint turns a box about its center, so moving the box moves its text, down along the box's own turn.
 		const turn = (rotation * Math.PI) / 180;
@@ -914,7 +936,9 @@ function spacedListParagraphs(
 	const fallback = firstRunOf(item.paragraphs);
 	/** How far below a paragraph's line's top PowerPoint draws its baseline, and the line's pitch. */
 	const lineOf = (paragraph: ListParagraph) => {
-		const pitch = paragraph.lineHeight ?? item.style.lineHeight;
+		const exact = spacesExactly(paragraph.runs, true);
+		const css = paragraph.lineHeight ?? item.style.lineHeight;
+		const pitch = exact ? exactPitchOf(css, paragraph.runs) : css;
 		const { font, size } = paragraph.runs.length
 			? firstLineLargestRun([paragraph])
 			: fallback;
@@ -924,9 +948,7 @@ function spacedListParagraphs(
 				metrics,
 				size,
 				pitch,
-				spacesExactly(paragraph.runs, true)
-					? metrics.baseline
-					: SPACED_BASELINE,
+				exact ? metrics.baseline : SPACED_BASELINE,
 			),
 			pitch,
 		};
@@ -1044,7 +1066,7 @@ function firstBaseline(
 		: Math.max(loose * pitch, pitch - singleDescent * single);
 }
 
-/** The first line's largest run, other than super- and subscripts, which PowerPoint keeps room below the line's baseline for. */
+/** The first line's largest run as written, other than super- and subscripts, which PowerPoint keeps room below the line's baseline for. */
 function firstLineLargestRun(paragraphs: Paragraph[]) {
 	const runs = paragraphs.find((paragraph) => paragraph.runs.length)?.runs;
 	if (!runs) {
@@ -1052,7 +1074,14 @@ function firstLineLargestRun(paragraphs: Paragraph[]) {
 	}
 
 	const end = runs.findIndex((run, index) => index > 0 && run.lineBreak);
-	const line = runs.slice(0, end === -1 ? undefined : end);
+	// Emoji lowered among text are written larger, which PowerPoint sizes their line by.
+	const line = withLoweredEmoji(
+		runs.slice(0, end === -1 ? undefined : end),
+	).map(({ lowered, ...run }): Run =>
+		lowered && !run.script
+			? { ...run, size: OFFSET_RUN_GROWTH * run.size }
+			: run,
+	);
 	return (
 		line.some((run) => !run.script) ? line.filter((run) => !run.script) : line
 	).reduce((largest, run) => (run.size > largest.size ? run : largest));
@@ -1423,6 +1452,28 @@ const breaksBefore = (run: Run, wrap: boolean) =>
 const spacesExactly = (runs: Run[], lowersEmoji: boolean) =>
 	hasMixedSizes(runs) ||
 	(lowersEmoji && withLoweredEmoji(runs).some((run) => run.lowered));
+
+/**
+ * The pitch to space a paragraph's lines exactly by: its own, unless that's
+ * near single spacing for one of its text sizes, where it's loosened past it.
+ * Each line drifts by the difference, which is at most 2% of its pitch.
+ */
+function exactPitchOf(pitch: number, runs: Run[]) {
+	const sizes = [
+		...new Set(
+			runs.filter((run) => !run.script && !run.pad).map((run) => run.size),
+		),
+	].sort((a, b) => a - b);
+	let written = pitch;
+	for (const size of sizes) {
+		const share = written / (SINGLE_LINE_PITCH * size);
+		if (share > NEAR_SINGLE.from && share < NEAR_SINGLE.to) {
+			written = LOOSENED_PITCH * SINGLE_LINE_PITCH * size;
+		}
+	}
+
+	return written;
+}
 
 /** A run that may be an emoji lowered by an offset from its line's baseline. */
 type LoweredRun = Run & { lowered?: boolean };
