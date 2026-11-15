@@ -573,6 +573,7 @@ function createItemWriter({
 							visibleParagraphs,
 							markerGap,
 							points,
+							fonts,
 						),
 					}
 				: undefined;
@@ -887,7 +888,27 @@ function measuredPitch(baselines: number[], lineHeight: number) {
 function spacedListParagraphs(
 	item: ListItem,
 	points: Units["points"],
+	fonts: FontBook,
 ): (ListParagraph & { spaceAfter?: number })[] {
+	const fallback = firstRunOf(item.paragraphs);
+	/** How far below a paragraph's line's top PowerPoint draws its baseline, and the line's pitch. */
+	const lineOf = (paragraph: ListParagraph) => {
+		const pitch = paragraph.lineHeight ?? item.style.lineHeight;
+		const { font, size } = paragraph.runs.length
+			? firstLineLargestRun([paragraph])
+			: fallback;
+		const metrics = fonts.metrics(font);
+		return {
+			baseline: firstBaseline(
+				metrics,
+				size,
+				pitch,
+				hasMixedFaces(paragraph.runs) ? metrics.baseline : SPACED_BASELINE,
+			),
+			pitch,
+		};
+	};
+
 	let exact = 0;
 	let written = 0;
 	return item.paragraphs.map((paragraph, index) => {
@@ -897,14 +918,12 @@ function spacedListParagraphs(
 			return paragraph;
 		}
 
-		// PowerPoint spaces a paragraph's first line by its own line spacing.
-		exact += points(
-			Math.max(
-				0,
-				next.baselines[0] - (last + (next.lineHeight ?? item.style.lineHeight)),
-			),
-		);
-		const spaceAfter = Math.round(exact) - written;
+		// PowerPoint steps from a line's baseline past the rest of its pitch, then down the next line's to its baseline.
+		const from = lineOf(paragraph);
+		const step = from.pitch - from.baseline + lineOf(next).baseline;
+		// Space can't be negative, so where the browser's step is shorter, later space makes up for it.
+		exact += points(next.baselines[0] - (last + step));
+		const spaceAfter = Math.max(0, Math.round(exact) - written);
 		written += spaceAfter;
 		return { ...paragraph, spaceAfter: spaceAfter || undefined };
 	});
@@ -916,9 +935,10 @@ function listParagraphs(
 	visibleParagraphs: boolean[] | undefined,
 	markerGap: number,
 	points: Units["points"],
+	fonts: FontBook,
 ): (TextParagraph & { marker?: Marker["kind"]; markerFace?: MarkerFace })[] {
 	const numbering = createNumbering();
-	return spacedListParagraphs(item, points).map((paragraph, index) => {
+	return spacedListParagraphs(item, points, fonts).map((paragraph, index) => {
 		const { level, number } = paragraph;
 		const visible = visibleParagraphs?.[index] ?? true;
 		const marker =

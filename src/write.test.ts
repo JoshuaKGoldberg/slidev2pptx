@@ -902,6 +902,50 @@ describe(writePptx, () => {
 		).toEqual(["125000", "100000"]);
 	});
 
+	it.each([
+		// From 9.14px below a 36px line's baseline, down 18.24px of a single-spaced 24px line, leaves 2.6pt of the 30px step.
+		[36, 24, 30, 300],
+		// From 5.76px below a 24px line's baseline, down 26.86px of a 36px line, leaves 2.4pt of the 35px step.
+		[24, 36, 35, 200],
+	])(
+		"spaces a list item after one with a %spx pitch, before one with %spx, by what's left of a %spx step",
+		async (from, to, step, spaceAfter) => {
+			const xml = await slideXml([
+				listItem([
+					listParagraph("First", { baselines: [40], lineHeight: from }),
+					listParagraph("Second", {
+						baselines: [40 + step],
+						lineHeight: to,
+					}),
+				]),
+			]);
+
+			expect(xml).toContain(
+				`<a:spcAft><a:spcPts val="${String(spaceAfter)}"/></a:spcAft>`,
+			);
+		},
+	);
+
+	it("makes up for a step PowerPoint can't space as short with less space later", async () => {
+		const xml = await slideXml([
+			listItem(
+				[36, 24, 36, 24].map((lineHeight, index) =>
+					listParagraph(`Item ${String(index)}`, {
+						baselines: [40 + 30 * index],
+						lineHeight,
+					}),
+				),
+			),
+		]);
+
+		// Each pair of steps is 60px, as PowerPoint's are: 2.6pt after the first leaves it 2.6pt ahead.
+		expect(
+			[...(xml ?? "").matchAll(/<a:spcAft><a:spcPts val="(\d+)"/g)].map(
+				([, value]) => value,
+			),
+		).toEqual(["300"]);
+	});
+
 	it("nests a paragraph a level deeper when its list is nested", async () => {
 		expect(
 			await slideXml([
