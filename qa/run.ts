@@ -73,7 +73,9 @@ await step("convert", paths.entry, async () => {
 	]);
 });
 
-await step("slidev", paths.slidevPng, async () => {
+await step("slidev", paths.slidevPng, renderSlidev);
+
+async function renderSlidev() {
 	// PowerPoint exports an animated GIF's first frame, while Chromium shows whichever frame it's on,
 	// so Slidev renders a copy of the deck whose GIFs hold only their first frame.
 	const deck = path.dirname(paths.entry);
@@ -101,7 +103,7 @@ await step("slidev", paths.slidevPng, async () => {
 		paths.slidevErrors,
 		JSON.stringify(errors, null, "\t") + "\n",
 	);
-});
+}
 
 await step("build", paths.clicks, async () => {
 	await fs.mkdir(path.dirname(paths.clicks), { recursive: true });
@@ -135,8 +137,14 @@ await step("compare", paths.report, async () => {
 	await fs.mkdir(paths.diff, { recursive: true });
 	await fs.mkdir(paths.sheets, { recursive: true });
 
-	const slidev = await pngs(paths.slidevPng);
+	let slidev = await pngs(paths.slidevPng);
 	const pptx = await pngs(paths.pptxPng);
+	// Under load, Slidev's export now and then leaves out every click state, so export it again.
+	if (slidev.length !== pptx.length) {
+		await renderSlidev();
+		slidev = await pngs(paths.slidevPng);
+	}
+
 	// States pair up by order, so a renderer that skipped some would put every later pair out of step.
 	if (slidev.length !== pptx.length) {
 		throw new Error(
