@@ -70,19 +70,74 @@ export function alignOf(context: ExtractContext, element: Element) {
 	return TEXT_ALIGNMENTS[logical[align] ?? align] ?? "left";
 }
 
+/** Families Blink on macOS gives 15% more ascent, to match the line heights of their Windows counterparts. */
+const TALLER_ON_MACOS = /^(?:courier|helvetica|times)$/i;
+
+/** How much ascent Blink on macOS adds to Courier, Helvetica and Times, as a share of their rounded content area. */
+const MACOS_ASCENT_BOOST = 0.15;
+
 const ascentRatio = (fonts: FontBook, font: string) => {
 	const { ascent, descent } = fonts.metrics(font);
 	return ascent / (ascent + descent);
 };
 
+/**
+ * The content area Blink lays out and paints inline backgrounds over, given a
+ * font's exact ascent and descent in layout px: each rounded to whole px, with
+ * more ascent for Courier, Helvetica and Times on macOS. `shift` is how far
+ * below takumi's baseline, which keeps the exact metrics, Blink puts a line's
+ * as each centers its content area in the line.
+ */
+export function contentAreaOf(font: string, ascent: number, descent: number) {
+	const below = Math.round(descent);
+	const rounded = Math.round(ascent);
+	const above = TALLER_ON_MACOS.test(font)
+		? rounded + Math.round((rounded + below) * MACOS_ASCENT_BOOST)
+		: rounded;
+	return {
+		ascent: above,
+		descent: below,
+		shift: (above - below - (ascent - descent)) / 2,
+	};
+}
+
+/** The content area of an element's font at its size, which sets where its lines' baselines go. */
+export function lineFontAreaOf(context: ExtractContext, element: Element) {
+	const style = context.styleOf(element);
+	const size = parseFloat(style["font-size"]);
+	const { font } = context.fonts.resolve(
+		style["font-family"],
+		Number(style["font-weight"]),
+		style["font-style"] === "italic",
+	);
+	const { ascent, descent } = context.fonts.metrics(font);
+	return contentAreaOf(font, ascent * size, descent * size);
+}
+
+/** The content area of a run's font, sized by the height takumi gave the run. */
+export function runAreaOf(fonts: FontBook, run: LaidOutRun, font: string) {
+	const ascent = run.height * ascentRatio(fonts, font);
+	return {
+		...contentAreaOf(font, ascent, run.height - ascent),
+		/** Where takumi puts the run's baseline, in the entry's run space. */
+		baseline: run.y + ascent,
+	};
+}
+
+/** Where Blink draws a run's baseline, given how far below takumi's its line's font puts it in layout px. */
 export const baselineOf = (
 	context: ExtractContext,
 	frame: RunFrame,
 	run: LaidOutRun,
 	font: string,
+	shift: number,
 ) => {
 	const rect = runRect(frame, run);
-	return rect.y + rect.height * ascentRatio(context.fonts, font);
+	return (
+		rect.y +
+		rect.height * ascentRatio(context.fonts, font) +
+		shift * frame.scale
+	);
 };
 
 export const isLineFeed = (run: LaidOutRun) => /^\n+$/.test(run.text);
@@ -132,6 +187,7 @@ export function runsToParagraph(
 ) {
 	const frame = runFrame(context, entry);
 	const source = entry.element ?? container;
+	const { shift } = lineFontAreaOf(context, source);
 	const clip = geometryOf(entry.box).rotation
 		? undefined
 		: context.clipOf(source, true);
@@ -178,7 +234,7 @@ export function runsToParagraph(
 		const pad = padRun(context, style, offset);
 		previous = run;
 		if (!style.script) {
-			const baseline = baselineOf(context, frame, run, style.font);
+			const baseline = baselineOf(context, frame, run, style.font, shift);
 			if (!baselines.length || newLine) {
 				baselines.push(baseline);
 			} else {

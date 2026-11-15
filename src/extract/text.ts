@@ -12,7 +12,9 @@ import {
 	isInvisible,
 	isLineFeed,
 	isRightToLeft,
+	lineFontAreaOf,
 	padRun,
+	runAreaOf,
 	runFrame,
 	runRect,
 	runsToParagraph,
@@ -35,6 +37,7 @@ export function codeItem(context: ExtractContext, pre: Element) {
 
 	const { box, scale } = geometryOf(laidOut);
 	const lineHeight = lineHeightOf(context.styleOf(pre));
+	const { shift } = lineFontAreaOf(context, pre);
 	const lines = [...pre.querySelectorAll(CODE_LINES)];
 
 	const lineOf = (run: LaidOutRun, owner: Element) =>
@@ -84,7 +87,7 @@ export function codeItem(context: ExtractContext, pre: Element) {
 			text: run.text.replace(/\t/g, "  "),
 		});
 		ends[index] = rect.x + rect.width;
-		baselines[index] ??= baselineOf(context, frame, run, style.font);
+		baselines[index] ??= baselineOf(context, frame, run, style.font, shift);
 	}
 
 	while (paragraphs.at(-1)?.runs.length === 0) {
@@ -134,7 +137,7 @@ export function inlinePills(
 			continue;
 		}
 
-		const lines = lineBoundsOf(context, entry, child);
+		const lines = lineBoundsOf(context, entry, child, element);
 
 		const insets = context.contentInsets(child);
 		const label = context.labelOf(child);
@@ -198,7 +201,7 @@ export function linkHotspots(
 			continue;
 		}
 
-		for (const line of lineBoundsOf(context, entry, link)) {
+		for (const line of lineBoundsOf(context, entry, link, element)) {
 			context.push(link, {
 				box: {
 					height: (line.bottom - line.top) * scale,
@@ -257,15 +260,36 @@ export function textItem(
 	});
 }
 
-/** The bounds of an element's laid-out runs in a text entry, one per line they span, in the entry's run space. */
+/**
+ * The bounds of an element's laid-out runs in a text entry, one per line they
+ * span, in the entry's run space: as wide as takumi lays them out, and as
+ * tall as the content area Blink paints their inline backgrounds over.
+ */
 function lineBoundsOf(
 	context: ExtractContext,
 	entry: TextRuns,
 	element: Element,
+	container: Element,
 ) {
-	const own = entry.runs.filter((run) => {
+	const { shift } = lineFontAreaOf(context, entry.element ?? container);
+	const own = entry.runs.flatMap((run) => {
 		const owner = context.byId.get(run.owner);
-		return owner !== undefined && element.contains(owner);
+		if (!owner || !element.contains(owner)) {
+			return [];
+		}
+
+		const area = runAreaOf(
+			context.fonts,
+			run,
+			runStyle(context, owner, 1).font,
+		);
+		return [
+			{
+				...run,
+				bottom: area.baseline + shift + area.descent,
+				top: area.baseline + shift - area.ascent,
+			},
+		];
 	});
 	const lines: { bottom: number; left: number; right: number; top: number }[] =
 		[];
@@ -283,8 +307,8 @@ function lineBoundsOf(
 
 		line.left = Math.min(line.left, run.x);
 		line.right = Math.max(line.right, run.x + run.width);
-		line.top = Math.min(line.top, run.y);
-		line.bottom = Math.max(line.bottom, run.y + run.height);
+		line.top = Math.min(line.top, run.top);
+		line.bottom = Math.max(line.bottom, run.bottom);
 	}
 
 	return lines;
