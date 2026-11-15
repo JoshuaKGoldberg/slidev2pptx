@@ -40,6 +40,15 @@ export interface ConversionLog {
 	}[];
 }
 
+/** Fills a group's properties can give its children's a:grpFill. */
+const GROUP_FILLS = new Set([
+	"a:blipFill",
+	"a:gradFill",
+	"a:noFill",
+	"a:pattFill",
+	"a:solidFill",
+]);
+
 const [input, output] = process.argv.slice(2);
 if (!input || !output) {
 	throw new Error(
@@ -95,9 +104,9 @@ export async function convertDeck(input: string, output: string) {
 		);
 
 		const svg = parseXml(renderer.renderSlideSvg(index)).documentElement;
+		// pptx-svg writes a group's children's gradients, markers, and patterns inside the group.
 		const defs = new Map(
-			[...svg.children]
-				.filter((child) => child.tagName === "defs")
+			descendantsNamed(svg, "defs")
 				.flatMap((child) => [...child.children])
 				.flatMap((child) => {
 					const id = child.getAttribute("id");
@@ -571,25 +580,45 @@ function staticTiming(): SlideTiming {
 }
 
 /**
- * Escapes characters outside the BMP in presentation.xml, such as an emoji in a section name.
- * pptx-svg 0.6.8 crashes loading a deck with one, but not when it's written as a reference.
+ * The deck with what pptx-svg mishandles rewritten:
+ * - Characters outside the BMP in presentation.xml, such as an emoji in a section name, are escaped.
+ *   pptx-svg 0.6.8 crashes loading a deck with one, but not when it's written as a reference.
+ * - Group fills (a:grpFill), which pptx-svg leaves empty, become their group's fill.
  * @see https://github.com/t-ujiie-g/pptx-svg/issues/88
  */
 async function forPptxSvg(zip: JSZip, bytes: Buffer<ArrayBuffer>) {
+	const rewrites = new Map<string, string>();
 	const part = "ppt/presentation.xml";
 	const xml = (await zip.file(part)?.async("string")) ?? "";
 	const escaped = xml.replaceAll(
 		/[\u{10000}-\u{10FFFF}]/gu,
 		(character) => `&#x${(character.codePointAt(0) ?? 0).toString(16)};`,
 	);
-	if (escaped === xml) {
+	if (escaped !== xml) {
+		rewrites.set(part, escaped);
+	}
+
+	for (const name of Object.keys(zip.files).filter((name) =>
+		/^ppt\/(?:slides|slideLayouts|slideMasters)\/[^/]+\.xml$/.test(name),
+	)) {
+		const original = (await zip.file(name)?.async("string")) ?? "";
+		const filled = withGroupFills(original);
+		if (filled !== original) {
+			rewrites.set(name, filled);
+		}
+	}
+
+	if (!rewrites.size) {
 		return bytes.buffer.slice(
 			bytes.byteOffset,
 			bytes.byteOffset + bytes.byteLength,
 		);
 	}
 
-	zip.file(part, escaped);
+	for (const [name, rewritten] of rewrites) {
+		zip.file(name, rewritten);
+	}
+
 	return await zip.generateAsync({ type: "arraybuffer" });
 }
 
@@ -719,6 +748,41 @@ async function styleSheet(
 	color: inherit;
 }
 `;
+}
+
+/**
+ * A part's XML with each a:grpFill replaced by its nearest group's own fill, or no fill without one.
+ * PowerPoint spans a group's gradient over the whole group, where this spans it over each shape.
+ */
+function withGroupFills(xml: string) {
+	if (!xml.includes("<a:grpFill")) {
+		return xml;
+	}
+
+	const fills = descendantsNamed(
+		parseXml(xml).documentElement,
+		"a:grpFill",
+	).map((element) => {
+		// Start above the shape (or group) whose properties hold this fill; a group without a fill has none.
+		let group = element.parentElement?.parentElement?.parentElement;
+		for (; group; group = group.parentElement) {
+			const properties = childNamed(group, "p:grpSpPr");
+			const fill = [...(properties?.children ?? [])].find(
+				(child) =>
+					GROUP_FILLS.has(child.tagName) || child.tagName === "a:grpFill",
+			);
+			if (properties && fill?.tagName !== "a:grpFill") {
+				return fill?.outerHTML ?? "<a:noFill/>";
+			}
+		}
+
+		return "<a:noFill/>";
+	});
+	let index = 0;
+	return xml.replaceAll(
+		/<a:grpFill\s*\/>|<a:grpFill\s*>\s*<\/a:grpFill>/g,
+		() => fills[index++] ?? "<a:noFill/>",
+	);
 }
 
 function withVisibility(html: string, visibility: undefined | Visibility) {

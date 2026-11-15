@@ -454,7 +454,11 @@ function definitionsFor(defs: Map<string, string>, markup: string) {
 		}
 	}
 
-	return used.size ? `<defs>${[...used.values()].join("")}</defs>` : "";
+	// A shape's own definitions are already in its markup.
+	const missing = [...used]
+		.filter(([id]) => !markup.includes(` id="${id}"`))
+		.map(([, definition]) => definition);
+	return missing.length ? `<defs>${missing.join("")}</defs>` : "";
 }
 
 function drawText(
