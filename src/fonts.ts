@@ -749,8 +749,11 @@ function powerPointName(
 
 	const faceWeight =
 		declaredWeight?.[1] ?? windowsMetricsOf(font)?.usWeightClass ?? 400;
+	// A declared face is the deck's boldest of its family, as the closest weight is picked; an installed one
+	// may have a bold sibling the font book doesn't load, which PowerPoint would use.
 	const synthetic =
 		weight >= 600 &&
+		declaredWeight !== undefined &&
 		faceWeight < 600 &&
 		!/^bold(?: italic)?$/i.test(font.subfamilyName);
 	return {
