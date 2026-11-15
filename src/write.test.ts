@@ -487,10 +487,13 @@ describe(writePptx, () => {
 	});
 
 	it.each([
+		// CSS draws a border inside its box.
 		[
 			"box",
 			boxItem({ box: { height: 40, width: 60, x: 10, y: 10 }, radius: 8 }),
+			[12, 12, 56, 36],
 		],
+		// SVG centers a stroke on its shape's edge, as PowerPoint does.
 		[
 			"ellipse",
 			{
@@ -499,10 +502,11 @@ describe(writePptx, () => {
 				key: "ring",
 				kind: "ellipse",
 			} as const,
+			[10, 10, 60, 40],
 		],
 	])(
-		"keeps a %s's border inside its box, with square joins, as CSS draws it",
-		async (_, item) => {
+		"outlines a %s where the browser strokes it, with square joins",
+		async (_, item, box) => {
 			const xml =
 				(await slideXml([
 					{ ...item, border: { color: "FF6347", transparency: 0, width: 4 } },
@@ -515,7 +519,7 @@ describe(writePptx, () => {
 			expect({
 				box: [x, y, width, height].map((emu) => emu / 12700),
 				join: /<a:ln w="50800">.*<a:miter lim="800000"\/><\/a:ln>/.test(xml),
-			}).toEqual({ box: [12, 12, 56, 36], join: true });
+			}).toEqual({ box, join: true });
 		},
 	);
 

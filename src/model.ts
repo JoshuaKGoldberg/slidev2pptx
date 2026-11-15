@@ -251,6 +251,7 @@ interface BoxItem extends ItemBase {
 	shadow?: Shadow;
 }
 
+/** An SVG circle or ellipse, whose stroke is centered on its edge. */
 interface EllipseItem extends ItemBase {
 	border?: Stroke;
 	box: Box;

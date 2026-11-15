@@ -697,8 +697,9 @@ function createItemWriter({
 			case "text":
 				return addText(slide, patch, item, name, visibleParagraphs);
 			case "ellipse":
+				// SVG strokes are centered on their shape's edge, as PowerPoint's outlines are.
 				slide.addShape(presentation.ShapeType.ellipse, {
-					...position(strokedBox(item.box, item.border)),
+					...position(item.box),
 					fill: fillFor(item.fill),
 					line: lineFor(item.border),
 					objectName: name,
