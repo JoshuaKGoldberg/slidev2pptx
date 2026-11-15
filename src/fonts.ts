@@ -567,6 +567,39 @@ function inUnicodeRange(face: Face, codePoint: number) {
 
 let installed: Map<string, InstalledFace[]> | undefined;
 
+export function metricsOf(font: fontkit.Font, name: string) {
+	const windowsMetrics = windowsMetricsOf(font);
+	const typographic = windowsMetrics?.fsSelection.useTypoMetrics
+		? windowsMetrics
+		: undefined;
+	const ascent =
+		(typographic ? typographic.typoAscender : font.ascent) / font.unitsPerEm;
+	const descent =
+		-(typographic ? typographic.typoDescender : font.descent) / font.unitsPerEm;
+	const measured = MEASURED_BASELINES.find(([pattern]) => pattern.test(name));
+	const typographicAscentRatio =
+		windowsMetrics &&
+		windowsMetrics.typoAscender - windowsMetrics.typoDescender > 0
+			? windowsMetrics.typoAscender /
+				(windowsMetrics.typoAscender - windowsMetrics.typoDescender)
+			: ascent / (ascent + descent);
+	const [up, down] = typographic
+		? [typographic.typoAscender, -typographic.typoDescender]
+		: windowsMetrics && windowsMetrics.winAscent + windowsMetrics.winDescent > 0
+			? [windowsMetrics.winAscent, windowsMetrics.winDescent]
+			: [font.ascent, -font.descent];
+	return {
+		ascent,
+		baseline:
+			measured?.[1] ??
+			BASELINE_FIT_INTERCEPT + BASELINE_FIT_SLOPE * typographicAscentRatio,
+		descent,
+		singleDescent:
+			MEASURED_SINGLE_DESCENTS.find(([pattern]) => pattern.test(name))?.[1] ??
+			down / (up + down),
+	} satisfies FontMetrics;
+}
+
 function installedFaces(family: string, generic?: Generic): Face[] {
 	installed ??= scanInstalledFonts();
 	const byFile = new Map<string, InstalledFace[]>();
@@ -609,39 +642,6 @@ async function loadWebFonts(options: ResolvedFontOptions, assets: Assets) {
 			? `https://api.fonts.coollabs.io/fonts?${query}&display=swap`
 			: `https://fonts.googleapis.com/css2?${query}&display=swap`;
 	return (await assets.load(url))?.toString("utf8") ?? "";
-}
-
-function metricsOf(font: fontkit.Font, name: string) {
-	const windowsMetrics = windowsMetricsOf(font);
-	const typographic = windowsMetrics?.fsSelection.useTypoMetrics
-		? windowsMetrics
-		: undefined;
-	const ascent =
-		(typographic ? typographic.typoAscender : font.ascent) / font.unitsPerEm;
-	const descent =
-		-(typographic ? typographic.typoDescender : font.descent) / font.unitsPerEm;
-	const measured = MEASURED_BASELINES.find(([pattern]) => pattern.test(name));
-	const typographicAscentRatio =
-		windowsMetrics &&
-		windowsMetrics.typoAscender - windowsMetrics.typoDescender > 0
-			? windowsMetrics.typoAscender /
-				(windowsMetrics.typoAscender - windowsMetrics.typoDescender)
-			: ascent / (ascent + descent);
-	const [up, down] = typographic
-		? [typographic.typoAscender, -typographic.typoDescender]
-		: windowsMetrics && windowsMetrics.winAscent + windowsMetrics.winDescent > 0
-			? [windowsMetrics.winAscent, windowsMetrics.winDescent]
-			: [font.ascent, -font.descent];
-	return {
-		ascent,
-		baseline:
-			measured?.[1] ??
-			BASELINE_FIT_INTERCEPT + BASELINE_FIT_SLOPE * typographicAscentRatio,
-		descent,
-		singleDescent:
-			MEASURED_SINGLE_DESCENTS.find(([pattern]) => pattern.test(name))?.[1] ??
-			down / (up + down),
-	} satisfies FontMetrics;
 }
 
 function openFace(data: Buffer, face: Face): LoadedFace | undefined {

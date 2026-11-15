@@ -1,6 +1,8 @@
 import type { createFontResolver } from "./fonts.ts";
 import type { Visibility } from "./timing.ts";
 
+import { inlineExtentOf } from "../../src/fonts.ts";
+import { firstBaseline, SPACED_BASELINE } from "../../src/write.ts";
 import { escapeAttribute, escapeText, px, styleOf } from "./html.ts";
 import { bulletLevelOf, propertyChildOf, propertyOf } from "./inheritance.ts";
 import {
@@ -112,11 +114,14 @@ export function convertText(
 		const previous = lines.get(index - 1)?.at(-1);
 		const first = paragraphLines.at(0);
 		const lineHeight = lineHeightOf(propertyChildOf(levels, "a:lnSpc"), size);
+		// PowerPoint leaves out a text body's first paragraph's space before.
 		const spaceBefore =
-			spacingOf(propertyChildOf(levels, "a:spcBef"), size) ??
-			(previous && first
-				? Math.max(0, first.y - previous.y - lineHeight)
-				: undefined);
+			index === 0
+				? undefined
+				: (spacingOf(propertyChildOf(levels, "a:spcBef"), size) ??
+					(previous && first
+						? Math.max(0, first.y - previous.y - lineHeight)
+						: undefined));
 		const spaceAfter = spacingOf(propertyChildOf(levels, "a:spcAft"), size);
 
 		// Indents and bullets inherited from layouts and masters only show in where pptx-svg drew them.
@@ -140,6 +145,18 @@ export function convertText(
 		const paragraphFont = runs.first?.font
 			? context.fonts.resolve(runs.first.font)
 			: undefined;
+		const shift = paragraphFont
+			? baselineShift(context, {
+					exact:
+						childNamed(propertyChildOf(levels, "a:lnSpc"), "a:spcPts") !==
+						undefined,
+					family: paragraphFont.family,
+					italic: paragraphFont.italic ?? runs.first?.italic ?? false,
+					lineHeight,
+					size,
+					weight: paragraphFont.weight ?? (runs.first?.bold ? 700 : 400),
+				})
+			: 0;
 		const style = styleOf({
 			"font-family": paragraphFont ? `'${paragraphFont.family}'` : undefined,
 			"font-size": px(size),
@@ -151,6 +168,7 @@ export function convertText(
 			"margin-bottom": spaceAfter ? px(spaceAfter) : undefined,
 			"margin-top": spaceBefore ? px(spaceBefore) : undefined,
 			"text-align": align === "left" ? undefined : align,
+			...(shift ? { position: "relative", top: px(shift) } : {}),
 		});
 		const content = runs.html || "<br>";
 		const bullet =
@@ -550,4 +568,49 @@ function textOf(paragraph: Element) {
 	return descendantsNamed(paragraph, "a:t")
 		.map((element) => element.textContent)
 		.join("");
+}
+
+/**
+ * How far below the browser's first baseline PowerPoint draws a paragraph's, in px:
+ * PowerPoint puts it by its own rule for its line spacing, as slidev2pptx models it,
+ * where browsers split a line's leading evenly around its font's content area.
+ * Each line moves alike, as both space them by the same pitch.
+ */
+function baselineShift(
+	context: TextContext,
+	{
+		exact,
+		family,
+		italic,
+		lineHeight,
+		size,
+		weight,
+	}: {
+		exact: boolean;
+		family: string;
+		italic: boolean;
+		lineHeight: number;
+		size: number;
+		weight: number;
+	},
+) {
+	const metrics = context.fonts.metrics(family, weight, italic);
+	if (!metrics) {
+		return 0;
+	}
+
+	const powerPoint = firstBaseline(
+		metrics,
+		size,
+		lineHeight,
+		exact ? metrics.baseline : SPACED_BASELINE,
+	);
+	const { above } = inlineExtentOf(
+		family,
+		metrics.ascent * size,
+		metrics.descent * size,
+		lineHeight,
+	);
+	const shift = Math.round((powerPoint - above) * 100) / 100;
+	return Math.abs(shift) < 0.1 ? 0 : shift;
 }

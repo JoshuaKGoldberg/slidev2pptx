@@ -1,5 +1,8 @@
+import * as fontkit from "fontkit";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+
+import { metricsOf } from "../../src/fonts.ts";
 
 /** A font file, as fontconfig reports it. */
 interface FontFile {
@@ -72,6 +75,43 @@ export function createFontResolver() {
 	const faces = new Map<string, FontFace>();
 	const missing = new Set<string>();
 
+	function measure(family: string, weight: number, italic: boolean) {
+		const lower = family.toLowerCase();
+		const candidates = fonts.filter((font) =>
+			font.families.some((name) => name.toLowerCase() === lower),
+		);
+		const distance = (font: FontFile) =>
+			(font.italic === italic ? 0 : 1000) +
+			Math.abs(
+				(Array.isArray(font.weight)
+					? Math.min(Math.max(weight, font.weight[0]), font.weight[1])
+					: font.weight) - weight,
+			);
+		const best = candidates.sort((a, b) => distance(a) - distance(b)).at(0);
+		if (!best) {
+			return undefined;
+		}
+
+		try {
+			const opened = fontkit.openSync(best.file);
+			// A collection's faces are told apart by family and style.
+			const face =
+				"fonts" in opened
+					? (opened.fonts.find(
+							(member) =>
+								member.familyName.toLowerCase() === lower &&
+								best.styles.some(
+									(style) =>
+										style.toLowerCase() === member.subfamilyName.toLowerCase(),
+								),
+						) ?? opened.fonts.at(0))
+					: opened;
+			return face ? metricsOf(face, family) : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	function addFaces(family: string, files: FontFile[]) {
 		for (const file of files) {
 			// CSS can't pick one face out of a collection, and the system resolves collections (like Menlo) by name anyway.
@@ -94,8 +134,22 @@ export function createFontResolver() {
 		}
 	}
 
+	const metricsCache = new Map<
+		string,
+		ReturnType<typeof metricsOf> | undefined
+	>();
+
 	return {
 		faces: () => [...faces.values()],
+		/** Line metrics of the face a family resolves to at a weight and style, as slidev2pptx measures them; undefined if it has no file. */
+		metrics(family: string, weight: number, italic: boolean) {
+			const key = `${family}\0${String(weight)}\0${String(italic)}`;
+			if (!metricsCache.has(key)) {
+				metricsCache.set(key, measure(family, weight, italic));
+			}
+
+			return metricsCache.get(key);
+		},
 		missing: () => [...missing],
 		resolve(name: string): ResolvedFont {
 			const lower = name.toLowerCase();

@@ -127,7 +127,7 @@ const ZERO_WIDTH_SPACE = "\u200B";
 const SINGLE_LINE_PITCH = 1.2;
 
 /** How far down its pitch PowerPoint (for Mac) puts a loosely spaced line's baseline, whatever the font (measured 0.740-0.753 over 7 fonts at 110-200%). */
-const SPACED_BASELINE = 0.746;
+export const SPACED_BASELINE = 0.746;
 
 /** Exact pitches between these shares of single spacing, where PowerPoint's first baseline flips between its rules with the font size (measured over 24-72px). */
 const NEAR_SINGLE = { from: 0.99, to: 1.015 };
@@ -1077,7 +1077,7 @@ const PPTXGEN_BASELINE_UNIT = 50;
  * it, unless `loose` of the pitch is lower; any looser, it puts the baseline
  * `loose` of the way down the pitch.
  */
-function firstBaseline(
+export function firstBaseline(
 	{ singleDescent }: { singleDescent: number },
 	size: number,
 	pitch: number,
