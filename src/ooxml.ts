@@ -318,6 +318,11 @@ export function patchSlide(
 			'lang="en-US" cap="all"',
 		)
 		.replaceAll("<a:ln></a:ln>", "<a:ln><a:noFill/></a:ln>")
+		// CSS borders and SVG strokes join square by default; PowerPoint rounds outlines without a join.
+		.replace(
+			/(<a:ln w="\d+"[^>]*>(?:(?!<\/a:ln>|<a:(?:round|bevel|miter)\b).)*?)(<a:headEnd|<a:tailEnd|<\/a:ln>)/gs,
+			'$1<a:miter lim="800000"/>$2',
+		)
 		// Browsers kern text by default; PowerPoint only kerns runs that ask for it, and pptxgenjs
 		// writes kern="0" on letter-spaced runs.
 		.replace(

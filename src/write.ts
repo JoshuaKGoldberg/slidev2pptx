@@ -649,10 +649,11 @@ function createItemWriter({
 	) => {
 		switch (item.kind) {
 			case "box": {
-				const radius = Math.min(
-					item.radius,
-					item.box.width / 2,
-					item.box.height / 2,
+				const box = strokedBox(item.box, item.border);
+				const radius = Math.max(
+					0,
+					Math.min(item.radius, item.box.width / 2, item.box.height / 2) -
+						(item.border?.width ?? 0) / 2,
 				);
 				const rounded = radius > MIN_ROUNDED_RADIUS;
 				slide.addShape(
@@ -660,7 +661,7 @@ function createItemWriter({
 						? presentation.ShapeType.roundRect
 						: presentation.ShapeType.rect,
 					{
-						...position(item.box),
+						...position(box),
 						fill: fillFor(item.fill),
 						flipH: item.flip,
 						hyperlink: item.href ? { url: item.href } : undefined,
@@ -680,7 +681,7 @@ function createItemWriter({
 				return addText(slide, patch, item, name, visibleParagraphs);
 			case "ellipse":
 				slide.addShape(presentation.ShapeType.ellipse, {
-					...position(item.box),
+					...position(strokedBox(item.box, item.border)),
 					fill: fillFor(item.fill),
 					line: lineFor(item.border),
 					objectName: name,
@@ -1188,6 +1189,24 @@ const baseSizeOf = (runs: Run[]) =>
  */
 const hasMixedSizes = (runs: Run[]) =>
 	new Set(runs.filter((run) => !run.script).map((run) => run.size)).size > 1;
+
+/**
+ * The geometry to outline for a CSS border inside a box: PowerPoint centers
+ * an outline on its shape's edge, where CSS draws a border inside its box.
+ */
+function strokedBox(box: Box, border: Stroke | undefined): Box {
+	const inset = Math.min(
+		(border?.width ?? 0) / 2,
+		box.width / 2,
+		box.height / 2,
+	);
+	return {
+		height: box.height - 2 * inset,
+		width: box.width - 2 * inset,
+		x: box.x + inset,
+		y: box.y + inset,
+	};
+}
 
 /** A paragraph's line spacing, as a multiple of single spacing. */
 const lineSpacingOf = (lineHeight: number, baseSize: number) =>

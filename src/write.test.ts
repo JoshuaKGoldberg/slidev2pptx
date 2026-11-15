@@ -404,6 +404,39 @@ describe(writePptx, () => {
 		);
 	});
 
+	it.each([
+		[
+			"box",
+			boxItem({ box: { height: 40, width: 60, x: 10, y: 10 }, radius: 8 }),
+		],
+		[
+			"ellipse",
+			{
+				box: { height: 40, width: 60, x: 10, y: 10 },
+				decorative: false,
+				key: "ring",
+				kind: "ellipse",
+			} as const,
+		],
+	])(
+		"keeps a %s's border inside its box, with square joins, as CSS draws it",
+		async (_, item) => {
+			const xml =
+				(await slideXml([
+					{ ...item, border: { color: "FF6347", transparency: 0, width: 4 } },
+				])) ?? "";
+			const [, x, y, width, height] =
+				/<a:off x="(\d+)" y="(\d+)"\/><a:ext cx="(\d+)" cy="(\d+)"\/>/
+					.exec(xml.slice(xml.indexOf("<p:sp>")))
+					?.map(Number) ?? [];
+
+			expect({
+				box: [x, y, width, height].map((emu) => emu / 12700),
+				join: /<a:ln w="50800">.*<a:miter lim="800000"\/><\/a:ln>/.test(xml),
+			}).toEqual({ box: [12, 12, 56, 36], join: true });
+		},
+	);
+
 	it("draws no line when a box has no border", async () => {
 		expect(
 			await slideXml([boxItem({ fill: { color: "FF0000", transparency: 0 } })]),
