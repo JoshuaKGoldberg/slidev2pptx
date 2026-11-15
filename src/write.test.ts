@@ -905,20 +905,28 @@ describe(writePptx, () => {
 		).toContain('<a:pPr algn="l" marL="304800" indent="-304800">');
 	});
 
-	it("hangs a decimal marker by its widest number's width when its font is loaded", async () => {
-		expect(
-			await slideXml([
-				listItem(
-					[9, 10].map((number) =>
-						listParagraph(`Item ${String(number)}`, {
-							marker: "decimal",
-							number,
-							runs: [run(`Item ${String(number)}`, { font: "Measured" })],
-						}),
-					),
+	it("hangs each decimal marker by its own width, leaving room for the widest, when its font is loaded", async () => {
+		const xml = await slideXml([
+			listItem(
+				[9, 10].map((number) =>
+					listParagraph(`Item ${String(number)}`, {
+						marker: "decimal",
+						number,
+						runs: [run(`Item ${String(number)}`, { font: "Measured" })],
+					}),
 				),
-			]),
-		).toContain('marL="609600" indent="-609600"');
+			),
+		]);
+
+		// "9. " and "10. " at 0.5em a character, at 24px.
+		expect(
+			[...(xml ?? "").matchAll(/marL="(\d+)" indent="(-\d+)"/g)].map(
+				([, marL, indent]) => [marL, indent],
+			),
+		).toEqual([
+			["609600", "-457200"],
+			["609600", "-609600"],
+		]);
 	});
 
 	it("spaces each list item by its own line height", async () => {

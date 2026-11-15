@@ -193,7 +193,11 @@ describe(patchSlide, () => {
 						'<a:p><a:pPr><a:buSzPct val="100000"/><a:buChar char="&#x25CF;"/></a:pPr></a:p>',
 					),
 				),
-				{ lists: [{ hang: 1, markers: ["keyword", "keyword"], name: "List" }] },
+				{
+					lists: [
+						{ hangs: [1, 1], markers: ["keyword", "keyword"], name: "List" },
+					],
+				},
 			),
 		).toThrow("A list has 1 paragraphs but 2 markers.");
 	});

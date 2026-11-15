@@ -663,7 +663,9 @@ function createItemWriter({
 							}
 						: undefined,
 				),
-				hang: Math.max(1, Math.round(points(markerGap) * EMU_PER_POINT)),
+				hangs: list.paragraphs.map(({ hang }) =>
+					Math.max(1, Math.round(points(hang) * EMU_PER_POINT)),
+				),
 				markers: list.paragraphs.map(({ marker }) => marker),
 				name,
 			});
@@ -936,6 +938,8 @@ function listParagraphs(
 	points: Units["points"],
 	fonts: FontBook,
 ): (TextParagraph & {
+	/** px its marker hangs before its text. */
+	hang: number;
 	marker?: Marker["kind"];
 	markerColor?: string;
 	markerFace?: MarkerFace;
@@ -967,6 +971,7 @@ function listParagraphs(
 								type: "number",
 							}
 						: { characterCode: marker.code, indent },
+			hang: (marker && ownMarkerWidth(paragraph, fonts)) ?? markerGap,
 			indentLevel: level || undefined,
 			lineHeight: paragraph.lineHeight,
 			marker: marker?.kind,
@@ -1142,6 +1147,18 @@ export function markerFor(listStyle: string): Marker | undefined {
  * its first run's, which PowerPoint would otherwise draw it in. Keyword markers
  * are always drawn in Arial, so only their size matters.
  */
+/** How wide a decimal marker draws, as browsers end each against its own item's text, or undefined when its font can't be measured. */
+function ownMarkerWidth(paragraph: ListParagraph, fonts: FontBook) {
+	if (paragraph.marker !== "decimal") {
+		return undefined;
+	}
+
+	const face = paragraph.markerFace ?? paragraph.runs.at(0);
+	const advance =
+		face && fonts.advance(face.font, `${String(paragraph.number)}. `);
+	return face && advance !== undefined ? advance * face.size : undefined;
+}
+
 /** The marker color a paragraph needs written, which PowerPoint otherwise takes from its first run: when that's a spacer, see-through, or another color. */
 function colorToWrite({ markerColor, runs }: ListParagraph) {
 	const first = runs.at(0);
