@@ -541,9 +541,13 @@ function createItemWriter({
 			fonts,
 		);
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
+		// A turned box's top comes from the text font's own baseline, which is
+		// already where browsers draw emoji, so only PowerPoint's rise remains.
 		const drop =
 			item.kind === "text" && paragraphs.every(isEmojiOnly)
-				? emojiDrop(fonts.metrics(firstRun.font)) * firstRun.size
+				? (rotation
+						? EMOJI_GLYPH_RISE
+						: emojiDrop(fonts.metrics(firstRun.font))) * firstRun.size
 				: 0;
 		// PowerPoint turns a box about its center, so moving the box moves its text, down along the box's own turn.
 		const turn = (rotation * Math.PI) / 180;
@@ -907,10 +911,11 @@ const EMOJI_GLYPH_RISE = 0.12;
 
 /**
  * How far, in em, to lower text that's all emoji for PowerPoint to draw them
- * where a browser does: PowerPoint draws them higher on their baseline, and
- * lays the line out by the emoji font's metrics instead of the text's
- * (measured within 0.04em in Arial, Courier New, Georgia, League Spartan,
- * Times New Roman, and Verdana).
+ * where a browser does, when the box's top comes from the baselines measured
+ * from takumi's runs: PowerPoint draws emoji higher on their baseline, and an
+ * emoji-only line's measured baseline is estimated from the emoji font's
+ * metrics instead of the text's (measured within 0.04em in Arial, Courier
+ * New, Georgia, League Spartan, Times New Roman, and Verdana).
  */
 function emojiDrop({ ascent, descent }: { ascent: number; descent: number }) {
 	return (

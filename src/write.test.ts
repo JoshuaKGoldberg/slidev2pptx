@@ -328,8 +328,9 @@ describe(writePptx, () => {
 	);
 
 	it.each([
-		[90, { x: -3.924, y: 0 }],
-		[180, { x: 0, y: -3.924 }],
+		// 0.12em, only PowerPoint's rise, at 24px.
+		[90, { x: -2.88, y: 0 }],
+		[180, { x: 0, y: -2.88 }],
 	])(
 		"lowers emoji along a text box turned %s degrees",
 		async (rotation, drop) => {
