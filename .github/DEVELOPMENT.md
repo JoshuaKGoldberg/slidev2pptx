@@ -27,9 +27,9 @@ pnpm build --watch
 
 ### Built App Debugging
 
-This repository includes a [VS Code launch configuration](https://code.visualstudio.com/docs/editor/debugging) for debugging.
-To debug a `bin` app, add a breakpoint to your code, then run _Debug Program_ from the VS Code Debug panel (or press F5).
-VS Code will automatically run the `build` task in the background before running `bin/index.js`.
+This repository includes a [VS Code launch configuration](https://code.visualstudio.com/docs/editor/debugging) for debugging the CLI.
+Add a breakpoint to your code, then run _Debug Program_ from the VS Code Debug panel (or press F5).
+VS Code will automatically run the `build` task, then run `bin/index.js` on the fixture deck in `src/fixture/`, writing the gitignored `src/fixture/debug.pptx`.
 
 ## Formatting
 
@@ -88,7 +88,7 @@ To launch it, open a test file, then run _Debug Current Test File_ from the VS C
 
 You should be able to see suggestions from [TypeScript](https://typescriptlang.org) in your editor for all open files.
 
-However, it can be useful to run the TypeScript command-line (`tsc`) to type check all files in `src/`:
+However, it can be useful to run the TypeScript command-line (`tsc`) to type check all files in `src/` and `qa/`:
 
 ```shell
 pnpm tsc
