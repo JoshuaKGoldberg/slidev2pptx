@@ -42,7 +42,31 @@ const { output, problems } = await buildPptx({
 });
 ```
 
-slidev2pptx renders slides with Slidev's own client internals, so it supports one Slidev major version at a time: currently `@slidev/cli@^53.1.0`.
+## Requirements
+
+- Node.js `^22.22.0 || >=24.0.0`
+- Slidev `^53.1.0`: slidev2pptx renders slides with Slidev's own client internals, so it supports one Slidev major version at a time
+- The deck's fonts installed on the machine that opens the PowerPoint file, as fonts aren't embedded in it.
+  slidev2pptx lays text out with the deck's `@font-face` fonts, its Slidev web fonts, and installed fonts, and warns about any it can't find.
+
+## Supported Features
+
+- Text, lists, code blocks, boxes, borders, and SVG shapes become native, editable PowerPoint shapes, with links kept clickable
+- Pictures are kept as pictures, and math is drawn as a picture whose alt text is its TeX source
+- `v-click`s and other click states become entrance and exit animations, or one slide per click state with `--with-clicks`
+- Slide transitions become PowerPoint's closest transition: `slide-*` as a push, anything else as a fade
+- Speaker notes, dark mode with `--dark`, and slide ranges with `--range`
+
+## Known Limitations
+
+- Mermaid diagrams, embedded posts, `<iframe>`s, and `<video>`s aren't exported, and are reported as errors
+- The output of `monaco-run` blocks and the modified side of `monaco-diff` blocks aren't exported, and are reported as errors
+- `v-mark` annotations aren't drawn, and are reported as warnings
+- An element whose contents would draw more than 400 shapes, such as a very dense slide, is drawn as one picture instead of editable shapes
+- PowerPoint can't number list items below 1, so such lists are numbered from 1, with a warning
+- PowerPoint lays text out itself, so lines can wrap or sit slightly differently than in Slidev.
+  For example, PowerPoint for Mac sometimes leaves out a font's pair kerning, making lines a few percent wider, and paragraphs that mix font sizes can drift by a few pixels.
+  [`qa/reports/`](./qa/reports/) lists the known differences.
 
 ## Development
 
