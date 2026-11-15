@@ -489,7 +489,9 @@ function createItemWriter({
 
 			const baseSize = baseSizeOf(pieces);
 			const pitch = paragraph.lineHeight ?? lineHeight;
-			const exact = pitch > 0 && hasMixedFaces(pieces);
+			const exact =
+				pitch > 0 &&
+				(hasMixedFaces(pieces) || pieces.some((piece) => piece.lowered));
 			const multiple = exact ? undefined : lineSpacingOf(pitch, baseSize);
 			return pieces.map((run, runIndex) => {
 				// Links that show no underline get transparent hotspots instead, as PowerPoint underlines linked text.
@@ -594,18 +596,18 @@ function createItemWriter({
 				: undefined;
 		const paragraphs: TextParagraph[] = list?.paragraphs ?? item.paragraphs;
 		const firstRun = firstRunOf(paragraphs);
+		// PowerPoint draws emoji higher on their baseline than browsers: text that's all emoji is lowered as a box, and emoji among text each by an offset.
+		const emojiOnly = item.kind === "text" && paragraphs.every(isEmojiOnly);
+		const drop = emojiOnly ? EMOJI_GLYPH_RISE * firstRun.size : 0;
 		const { height, top } = verticalPlacement(
 			item,
 			style,
 			rotation,
-			hasMixedFaces(paragraphs[0]?.runs ?? []),
+			spacesExactly(paragraphs[0]?.runs ?? [], !emojiOnly),
 			firstLineLargestRun(paragraphs),
 			fonts,
 		);
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
-		// PowerPoint draws emoji higher on their baseline than browsers: text that's all emoji is lowered as a box, and emoji among text each by an offset.
-		const emojiOnly = item.kind === "text" && paragraphs.every(isEmojiOnly);
-		const drop = emojiOnly ? EMOJI_GLYPH_RISE * firstRun.size : 0;
 		// PowerPoint turns a box about its center, so moving the box moves its text, down along the box's own turn.
 		const turn = (rotation * Math.PI) / 180;
 		const box = {
@@ -919,7 +921,9 @@ function spacedListParagraphs(
 				metrics,
 				size,
 				pitch,
-				hasMixedFaces(paragraph.runs) ? metrics.baseline : SPACED_BASELINE,
+				spacesExactly(paragraph.runs, true)
+					? metrics.baseline
+					: SPACED_BASELINE,
 			),
 			pitch,
 		};
@@ -1391,6 +1395,15 @@ const spacingPercent = (multiple: number | undefined) =>
 
 const breaksBefore = (run: Run, wrap: boolean) =>
 	run.lineBreak === "forced" || (!wrap && run.lineBreak === "wrap");
+
+/**
+ * Whether a paragraph's lines are spaced exactly rather than by a multiple:
+ * where they mix faces, or where emoji among text are lowered, as PowerPoint
+ * would make room under a multiple for the larger size they're written at.
+ */
+const spacesExactly = (runs: Run[], lowersEmoji: boolean) =>
+	hasMixedFaces(runs) ||
+	(lowersEmoji && withLoweredEmoji(runs).some((run) => run.lowered));
 
 /** A run that may be an emoji lowered by an offset from its line's baseline. */
 type LoweredRun = Run & { lowered?: boolean };

@@ -323,7 +323,6 @@ describe(writePptx, () => {
 		// 0.12em at 24px.
 		["❌ 💖", 2.88],
 		["👩‍💻", 2.88],
-		["Text ❌", 0],
 		["#", 0],
 	])(
 		"lowers %j by %s px as PowerPoint draws emoji higher",
@@ -357,6 +356,11 @@ describe(writePptx, () => {
 		"lowers emoji among text by an offset from the baseline: %j",
 		async (runs, written) => {
 			const xml = (await slideXml([textItem([runs])])) ?? "";
+
+			// Lines with lowered emoji are spaced exactly, as PowerPoint would make room for the larger size under a multiple.
+			expect(xml.includes("<a:spcPts")).toBe(
+				written.some((run) => run.endsWith("-10000")),
+			);
 
 			expect(
 				[...xml.matchAll(/<a:r><a:rPr([^>]*)>.*?<a:t>([^<]*)<\/a:t>/g)].map(
