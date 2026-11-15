@@ -24,6 +24,7 @@ import {
 	markerFor,
 	numberLength,
 	timeline,
+	unkernedWidthOf,
 	writePptx,
 } from "./write.ts";
 
@@ -2155,6 +2156,67 @@ describe(horizontalPlacement, () => {
 			left: 100,
 			width: 200,
 		});
+	});
+
+	it.each([
+		// Its widest line without kerning, plus its rounding slack.
+		[154, 156],
+		// No closer than half way to keeping a word the browser wrapped.
+		[160, 160],
+		// Never narrower than its rounding slack allows.
+		[140, 152],
+	])(
+		"grows wrapped text for its widest line drawn %spx wide without kerning",
+		(unkerned, width) => {
+			expect(
+				horizontalPlacement(
+					box,
+					{
+						...style,
+						available: { left: 0, right: 300 },
+						nowrap: false,
+						wrapLimit: 170,
+						wrapWidth: 150,
+					},
+					0,
+					unkerned,
+				),
+			).toEqual({ left: 100, width });
+		},
+	);
+
+	it("grows one-line text past its container for its width without kerning", () => {
+		expect(
+			horizontalPlacement(
+				box,
+				{ ...style, available: { left: 0, right: 300 }, nowrap: false },
+				0,
+				215,
+			),
+		).toEqual({ left: 100, width: 217 });
+	});
+});
+
+describe(unkernedWidthOf, () => {
+	it("measures the widest line from its fonts' advances, without the spaces it ends with", () => {
+		expect(
+			unkernedWidthOf(
+				[
+					{
+						runs: [
+							run("ab ", { font: "Measured", size: 20 }),
+							run("cd  ", { font: "Measured", letterSpacing: 1, size: 10 }),
+							run("e", { font: "Measured", lineBreak: "wrap", size: 20 }),
+						],
+					},
+				],
+				fonts,
+			),
+		).toBe(42);
+	});
+
+	it("measures nothing when a font isn't loaded", () => {
+		expect(unkernedWidthOf([{ runs: [run("ab")] }], fonts)).toBeUndefined();
 	});
 });
 

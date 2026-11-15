@@ -647,7 +647,12 @@ function createItemWriter({
 			height: placed.height,
 			top: placed.top - centering,
 		};
-		const { left, width } = horizontalPlacement(item.box, style, rotation);
+		const { left, width } = horizontalPlacement(
+			item.box,
+			style,
+			rotation,
+			item.kind === "text" ? unkernedWidthOf(paragraphs, fonts) : undefined,
+		);
 		// PowerPoint turns a box about its center, so moving the box moves its text, down along the box's own turn.
 		const turn = (rotation * Math.PI) / 180;
 		const box = {
@@ -1152,11 +1157,15 @@ function verticalPlacement(
 	return { height: box.height, top: box.y };
 }
 
-/** How wide the box is and where it starts, with slack toward the side(s) its alignment grows it, within the room its container leaves; text that can't wrap needs none. */
+/**
+ * How wide the box is and where it starts, with slack toward the side(s) its alignment grows it, within the room its container leaves; text that can't wrap needs none.
+ * Text also gets room for its widest line without pair kerning, which PowerPoint for Mac sometimes drops, as long as that stays short of keeping a word the browser wrapped.
+ */
 export function horizontalPlacement(
 	box: Box,
 	style: TextStyle,
 	rotation: number,
+	unkerned?: number,
 ) {
 	const width =
 		style.wrapWidth !== undefined && style.align === "left" && !rotation
@@ -1172,17 +1181,21 @@ export function horizontalPlacement(
 				: roomRight;
 	const slackOf = ({ minimum, ratio }: typeof ONE_LINE_SLACK) =>
 		Math.max(minimum, box.width * ratio);
+	const rounding = slackOf(ROUNDING_SLACK);
+	const unkernedSlack =
+		unkerned === undefined ? 0 : unkerned + rounding - width;
 	const grown =
 		rotation || style.nowrap
 			? 0
 			: style.wrapWidth === undefined
 				? Math.max(
-						slackOf(ROUNDING_SLACK),
+						rounding,
+						unkernedSlack,
 						Math.min(slackOf(ONE_LINE_SLACK), room),
 					)
 				: // Half way, at most, to where PowerPoint would keep a word the browser wrapped, which can't be narrower than the widest line.
 					Math.min(
-						slackOf(ROUNDING_SLACK),
+						Math.max(rounding, unkernedSlack),
 						style.wrapLimit !== undefined && style.wrapLimit > width
 							? (style.wrapLimit - width) / 2
 							: Infinity,
@@ -1190,6 +1203,40 @@ export function horizontalPlacement(
 	const shift =
 		style.align === "center" ? grown / 2 : style.align === "right" ? grown : 0;
 	return { left: box.x - shift, width: width + grown };
+}
+
+/** How wide a text's widest line draws without pair kerning, from its fonts' advances, ignoring the spaces a line ends with; undefined if any of its fonts isn't loaded. */
+export function unkernedWidthOf(paragraphs: TextParagraph[], fonts: FontBook) {
+	let widest = 0;
+	for (const { runs } of paragraphs) {
+		const lines: Run[][] = [[]];
+		for (const run of runs) {
+			if (run.lineBreak && lines[lines.length - 1].length) {
+				lines.push([]);
+			}
+
+			lines[lines.length - 1].push(run);
+		}
+
+		for (const line of lines) {
+			let width = 0;
+			for (const [index, run] of line.entries()) {
+				const shown = run.upper ? run.text.toUpperCase() : run.text;
+				const text = index === line.length - 1 ? shown.trimEnd() : shown;
+				const advance = fonts.advance(run.font, text);
+				if (advance === undefined) {
+					return undefined;
+				}
+
+				width +=
+					advance * run.size + run.letterSpacing * Array.from(text).length;
+			}
+
+			widest = Math.max(widest, width);
+		}
+	}
+
+	return widest;
 }
 
 /** The PowerPoint marker for a CSS list-style-type, if it shows one. */
