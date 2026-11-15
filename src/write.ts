@@ -102,9 +102,6 @@ const DEFAULT_TITLE = {
 	y: 0.05,
 } as const;
 
-/** Bulleted paragraphs render about 0.035 lines lower in PowerPoint (measured). */
-const LIST_LIFT = 0.035;
-
 /** Browsers draw a disc marker about 0.75em left of where each item's text starts. */
 const BULLET_GAP = 0.75;
 
@@ -985,10 +982,7 @@ function verticalPlacement(
 	}
 
 	if (baselines?.length && style.lineHeight) {
-		const top =
-			baselines[0] -
-			firstLine -
-			(item.kind === "list" ? LIST_LIFT * style.lineHeight : 0);
+		const top = baselines[0] - firstLine;
 		return {
 			height: Math.max(
 				box.height + (box.y - top),

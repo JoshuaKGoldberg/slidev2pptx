@@ -382,6 +382,19 @@ describe(writePptx, () => {
 		},
 	);
 
+	it("puts a list's first baseline where a text box's goes", async () => {
+		const offsetOf = async (item: Item) =>
+			[
+				...((await slideXml([item])) ?? "").matchAll(
+					/<a:off x="\d+" y="(\d+)"/g,
+				),
+			].at(-1)?.[1];
+
+		expect(
+			await offsetOf(listItem([listParagraph("Text", { baselines: [40] })])),
+		).toBe(await offsetOf(textItem([[run("Text")]])));
+	});
+
 	it("throws when a text item has no runs", async () => {
 		await expect(slideXml([textItem([[]])])).rejects.toThrow(
 			"Text items need at least one run.",
