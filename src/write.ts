@@ -1105,7 +1105,11 @@ export function horizontalPlacement(
 						slackOf(ROUNDING_SLACK),
 						Math.min(slackOf(ONE_LINE_SLACK), room),
 					)
-				: slackOf(ROUNDING_SLACK);
+				: // Half way, at most, to where PowerPoint would keep a word the browser wrapped.
+					Math.min(
+						slackOf(ROUNDING_SLACK),
+						Math.max(0, ((style.wrapLimit ?? Infinity) - width) / 2),
+					);
 	const shift =
 		style.align === "center" ? grown / 2 : style.align === "right" ? grown : 0;
 	return { left: box.x - shift, width: width + grown };

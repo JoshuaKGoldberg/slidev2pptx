@@ -1985,6 +1985,30 @@ describe(horizontalPlacement, () => {
 		).toEqual({ left: 100, width: 152 });
 	});
 
+	it.each([
+		// Half way to where the next word would fit.
+		[153, 151.5],
+		// No more than its rounding slack.
+		[170, 152],
+	])(
+		"grows wrapped text no closer than half way to keeping a word the browser wrapped, %spx wide with it",
+		(wrapLimit, width) => {
+			expect(
+				horizontalPlacement(
+					box,
+					{
+						...style,
+						available: { left: 0, right: 300 },
+						nowrap: false,
+						wrapLimit,
+						wrapWidth: 150,
+					},
+					0,
+				),
+			).toEqual({ left: 100, width });
+		},
+	);
+
 	it("leaves text as wide as the browser drew it when it can't wrap", () => {
 		expect(horizontalPlacement(box, { ...style, nowrap: true }, 0)).toEqual({
 			left: 100,

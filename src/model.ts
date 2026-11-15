@@ -222,6 +222,12 @@ export interface TextStyle {
 	rtl: boolean;
 
 	/**
+	 * For wrapped text, the narrowest width (px) a line and the word the browser wrapped after it
+	 * would have needed together: a box at least this wide would keep that word on the line.
+	 */
+	wrapLimit?: number;
+
+	/**
 	 * For wrapped text, how wide (px) its longest line is in the browser. PowerPoint measures
 	 * text a little differently, so wrapping at this width keeps the browser's line breaks.
 	 */

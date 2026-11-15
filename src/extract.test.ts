@@ -427,6 +427,19 @@ describe(extractState, () => {
 		},
 	);
 
+	it("records how wide a line and the word wrapped after it would be together", async () => {
+		const { items } = await extract(
+			`<p style="width: 60px; font-family: 'Fixture Sans'">alpha beta</p>`,
+		);
+		const [item] = items;
+		const { wrapLimit = 0, wrapWidth = 0 } =
+			item.kind === "text" ? item.style : {};
+
+		// Wider than the box, which the browser wrapped "beta" to fit, and its longest line.
+		expect(wrapLimit).toBeGreaterThan(60);
+		expect(wrapLimit).toBeGreaterThan(wrapWidth);
+	});
+
 	it("keeps the space a pre-wrap line wraps at", async () => {
 		const { items } = await extract(
 			`<p style="white-space: pre-wrap; width: 60px; font-family: 'Fixture Sans'">alpha beta</p>`,

@@ -131,6 +131,7 @@ export function listItem(
 				lineHeight: lineHeightOf(context.styleOf(styled)) * scale,
 				nowrap: false,
 				rtl: isRightToLeft(context, styled),
+				wrapLimit: limitOf(converted.map(({ wrapLimit }) => wrapLimit)),
 				wrapWidth: converted.some(({ wrapped }) => wrapped)
 					? Math.max(...converted.map(({ right }) => right)) - box.x
 					: undefined,
@@ -160,11 +161,8 @@ export function markedItem(
 	const { box, scale } = geometryOf(laidOut);
 	const style = context.styleOf(item);
 	const items = itemsOf(list).filter((sibling) => context.boxOf(sibling));
-	const { baselines, left, right, runs, wrapRight } = runsToParagraph(
-		context,
-		entry,
-		item,
-	);
+	const { baselines, left, right, runs, wrapLimit, wrapRight } =
+		runsToParagraph(context, entry, item);
 	const paragraphs = [
 		{
 			baselines,
@@ -194,6 +192,7 @@ export function markedItem(
 			lineHeight: lineHeightOf(style) * scale,
 			nowrap: false,
 			rtl: isRightToLeft(context, item),
+			wrapLimit: wrapLimit === undefined ? undefined : wrapLimit + left - box.x,
 			wrapWidth: wrapRight === undefined ? undefined : right - box.x,
 		},
 	});
@@ -239,6 +238,12 @@ function columnsOf(context: ExtractContext, list: Element) {
 	}
 
 	return columns;
+}
+
+/** The narrowest of a list's paragraphs' wrap limits, if any wrapped. */
+function limitOf(limits: (number | undefined)[]) {
+	const known = limits.filter((limit) => limit !== undefined);
+	return known.length ? Math.min(...known) : undefined;
 }
 
 /** The color a list item's marker shows in, from its ::marker's style (which inherits the item's). */
@@ -305,7 +310,12 @@ function listParagraphs(
 	/** Collects each item's text, to lay link hotspots over once the list is placed. */
 	links: { element: Element; entry: TextRuns }[],
 	shown = itemsOf(list),
-): { paragraph: ListParagraph; right: number; wrapped: boolean }[] {
+): {
+	paragraph: ListParagraph;
+	right: number;
+	wrapLimit?: number;
+	wrapped: boolean;
+}[] {
 	const items = itemsOf(list).filter((item) => context.boxOf(item));
 	const numbers = ordinalsOf(list, items);
 	return items.flatMap((item, index) => {
@@ -340,12 +350,13 @@ function listParagraphs(
 
 			inlinePills(context, block.entry.element ?? item, block.entry);
 			links.push({ element: block.entry.element ?? item, entry: block.entry });
-			const { baselines, left, right, runs, wrapRight } = runsToParagraph(
-				context,
-				block.entry,
-				item,
-				shared.visible ? context.opacityOf : () => opacity,
-			);
+			const { baselines, left, right, runs, wrapLimit, wrapRight } =
+				runsToParagraph(
+					context,
+					block.entry,
+					item,
+					shared.visible ? context.opacityOf : () => opacity,
+				);
 			if (!runs.length) {
 				return [];
 			}
@@ -360,6 +371,9 @@ function listParagraphs(
 						runs,
 					},
 					right,
+					// Its lines start at its indent, so the box needs that much more width.
+					wrapLimit:
+						wrapLimit === undefined ? undefined : wrapLimit + left - textLeft,
 					wrapped: wrapRight !== undefined,
 				},
 			];

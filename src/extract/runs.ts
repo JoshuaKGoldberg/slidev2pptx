@@ -180,6 +180,8 @@ export function runsToParagraph(
 	let previous: LaidOutRun | undefined;
 	let right = -Infinity;
 	let start = Infinity;
+	let line = { left: Infinity, right: -Infinity };
+	let wrapLimit = Infinity;
 	let wrapped = false;
 	let afterNewline = false;
 	let leadingSpaced = false;
@@ -209,6 +211,13 @@ export function runsToParagraph(
 		right = Math.max(right, rect.x + rect.width);
 		start = Math.min(start, rect.x);
 		const newLine = startsLine(previous, run);
+		const ended = line;
+		line = newLine
+			? { left: rect.x, right: rect.x + rect.width }
+			: {
+					left: Math.min(line.left, rect.x),
+					right: Math.max(line.right, rect.x + rect.width),
+				};
 		const offset =
 			(previous && !newLine
 				? run.x - (previous.x + previous.width)
@@ -246,6 +255,13 @@ export function runsToParagraph(
 				afterNewline,
 			);
 			wrapped ||= !forced;
+			if (!forced) {
+				wrapLimit = Math.min(
+					wrapLimit,
+					ended.right - ended.left + firstWordWidth(context, run, rect, style),
+				);
+			}
+
 			if (last && !last.pad) {
 				// A space the browser wrapped at can be its own run, which the source match already passed.
 				const hung = spaced || /[ \t\n\r\f]$/.test(last.text);
@@ -296,8 +312,28 @@ export function runsToParagraph(
 		runs: trimRuns(runs, leadingSpaced, holdsTrailingSpaces),
 		/** Where the text's first run starts. */
 		start,
+		wrapLimit: wrapped && Number.isFinite(wrapLimit) ? wrapLimit : undefined,
 		wrapRight: wrapped ? right : undefined,
 	};
+}
+
+/** How wide a run's first word draws: its share of the run's width, by advance in its font where that's measurable, else by characters. */
+function firstWordWidth(
+	context: ExtractContext,
+	run: LaidOutRun,
+	rect: { width: number },
+	style: Omit<Run, "text">,
+) {
+	const text = trimCollapsibleStart(run.text);
+	const word = /^\S*/.exec(text)?.[0] ?? "";
+	const whole = context.fonts.advance(style.font, text);
+	const part = context.fonts.advance(style.font, word);
+	return (
+		rect.width *
+		(whole && part !== undefined
+			? part / whole
+			: word.length / Math.max(1, text.length))
+	);
 }
 
 /** A spacer run as wide as a gap between runs, in a run's style; undefined when the gap is only kerning. */

@@ -232,11 +232,8 @@ export function textItem(
 	const content = entry.element
 		? insetBox(entryBox, context.contentInsets(entry.element), scale)
 		: entryBox;
-	const { baselines, right, runs, start, wrapRight } = runsToParagraph(
-		context,
-		entry,
-		element,
-	);
+	const { baselines, right, runs, start, wrapLimit, wrapRight } =
+		runsToParagraph(context, entry, element);
 	const paragraphs = [{ runs }];
 	if (isInvisible(paragraphs)) {
 		return;
@@ -268,6 +265,7 @@ export function textItem(
 			nowrap:
 				/^(?:nowrap|pre)$/.test(style["white-space"]) || Boolean(rotation),
 			rtl,
+			wrapLimit,
 			wrapWidth: wrapRight === undefined ? undefined : wrapRight - box.x,
 		},
 	});
