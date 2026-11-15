@@ -320,9 +320,9 @@ describe(writePptx, () => {
 	});
 
 	it.each([
-		// 0.12em, plus half the difference between Apple Color Emoji's ascent less descent (0.687) and the text's (0.6), at 24px.
-		["❌ 💖", 3.924],
-		["👩‍💻", 3.924],
+		// 0.12em at 24px.
+		["❌ 💖", 2.88],
+		["👩‍💻", 2.88],
 		["Text ❌", 0],
 		["#", 0],
 	])(

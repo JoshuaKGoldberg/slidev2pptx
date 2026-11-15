@@ -35,7 +35,7 @@ import type {
 } from "./ooxml.ts";
 import type { BuildPptxProblem } from "./types.ts";
 
-import { contentAreaOf } from "./fonts.ts";
+import { contentAreaOf, isEmojiText } from "./fonts.ts";
 import {
 	createGradients,
 	createNumbering,
@@ -587,13 +587,10 @@ function createItemWriter({
 			fonts,
 		);
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
-		// A turned box's top comes from the text font's own baseline, which is
-		// already where browsers draw emoji, so only PowerPoint's rise remains.
+		// PowerPoint draws emoji higher on their baseline than browsers, which it can only be lowered by where they're all there is.
 		const drop =
 			item.kind === "text" && paragraphs.every(isEmojiOnly)
-				? (rotation
-						? EMOJI_GLYPH_RISE
-						: emojiDrop(fonts.metrics(firstRun.font))) * firstRun.size
+				? EMOJI_GLYPH_RISE * firstRun.size
 				: 0;
 		// PowerPoint turns a box about its center, so moving the box moves its text, down along the box's own turn.
 		const turn = (rotation * Math.PI) / 180;
@@ -959,45 +956,12 @@ function listParagraphs(
 	});
 }
 
-/** Characters that join emoji into one: zero-width joiners, variation selectors, and keycaps. */
-const EMOJI_JOINERS = new Set(["\u200D", "\uFE0F", "\u20E3"]);
-
 /** Whether a paragraph's text is all emoji (and white space). */
-function isEmojiOnly({ runs }: Paragraph) {
-	const characters = Array.from(runs.map(({ text }) => text).join(""));
-	return (
-		characters.some((character) =>
-			/\p{Extended_Pictographic}/u.test(character),
-		) &&
-		characters.every(
-			(character) =>
-				/[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\s]/u.test(
-					character,
-				) || EMOJI_JOINERS.has(character),
-		)
-	);
-}
-
-/** Apple Color Emoji's ascent and descent, in em. */
-const EMOJI_ASCENT = 1;
-const EMOJI_DESCENT = 0.313;
+const isEmojiOnly = ({ runs }: Paragraph) =>
+	isEmojiText(runs.map(({ text }) => text).join(""));
 
 /** How much higher PowerPoint (for Mac) draws an emoji than a browser does on the same baseline, in em (measured). */
 const EMOJI_GLYPH_RISE = 0.12;
-
-/**
- * How far, in em, to lower text that's all emoji for PowerPoint to draw them
- * where a browser does, when the box's top comes from the baselines measured
- * from takumi's runs: PowerPoint draws emoji higher on their baseline, and an
- * emoji-only line's measured baseline is estimated from the emoji font's
- * metrics instead of the text's (measured within 0.04em in Arial, Courier
- * New, Georgia, League Spartan, Times New Roman, and Verdana).
- */
-function emojiDrop({ ascent, descent }: { ascent: number; descent: number }) {
-	return (
-		EMOJI_GLYPH_RISE + (EMOJI_ASCENT - EMOJI_DESCENT - (ascent - descent)) / 2
-	);
-}
 
 /**
  * How far below a line's top, in px, PowerPoint draws its first baseline: up

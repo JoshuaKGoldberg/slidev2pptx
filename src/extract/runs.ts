@@ -12,7 +12,7 @@ import {
 	parseShadows,
 	transparencyOf,
 } from "../color.ts";
-import { contentAreaOf } from "../fonts.ts";
+import { contentAreaOf, isEmojiText } from "../fonts.ts";
 import { ZERO_WIDTH_SPACE } from "../layout.ts";
 import { clipsToText, paintedSizeOf } from "./boxes.ts";
 import { geometryOf, scaleOf, showsIn } from "./geometry.ts";
@@ -75,6 +75,9 @@ export function alignOf(context: ExtractContext, element: Element) {
 const strokesBehind = (order: string) =>
 	/\b(?:fill|stroke)\b/.exec(order)?.[0] === "stroke";
 
+/** How far down its box takumi puts an emoji run's baseline, whatever the text's font (measured: 0.966em down a 1.178em box). */
+const EMOJI_RUN_BASELINE = 0.8206;
+
 const ascentRatio = (fonts: FontBook, font: string) => {
 	const { ascent, descent } = fonts.metrics(font);
 	return ascent / (ascent + descent);
@@ -112,11 +115,11 @@ export const baselineOf = (
 	shift: number,
 ) => {
 	const rect = runRect(frame, run);
-	return (
-		rect.y +
-		rect.height * ascentRatio(context.fonts, font) +
-		shift * frame.scale
-	);
+	// takumi lays emoji out in their own font, whose box sits differently on the baseline.
+	const ratio = isEmojiText(run.text)
+		? EMOJI_RUN_BASELINE
+		: ascentRatio(context.fonts, font);
+	return rect.y + rect.height * ratio + shift * frame.scale;
 };
 
 export const isLineFeed = (run: LaidOutRun) => /^\n+$/.test(run.text);

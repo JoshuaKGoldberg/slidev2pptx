@@ -149,6 +149,25 @@ const WEIGHT_SUFFIX =
 const isGeneric = (family: string): family is Generic =>
 	Object.hasOwn(GENERICS, family);
 
+/** Characters that join emoji into one: zero-width joiners, variation selectors, and keycaps. */
+const EMOJI_JOINERS = new Set(["\u200D", "\uFE0F", "\u20E3"]);
+
+/** Whether text is all emoji (and white space). */
+export function isEmojiText(text: string) {
+	const characters = Array.from(text);
+	return (
+		characters.some((character) =>
+			/\p{Extended_Pictographic}/u.test(character),
+		) &&
+		characters.every(
+			(character) =>
+				/[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\s]/u.test(
+					character,
+				) || EMOJI_JOINERS.has(character),
+		)
+	);
+}
+
 /** Families Blink on macOS gives 15% more ascent, to match the line heights of their Windows counterparts. */
 const TALLER_ON_MACOS = /^(?:courier|helvetica|times)$/i;
 
