@@ -541,7 +541,7 @@ function createItemWriter({
 			style,
 			rotation,
 			hasMixedSizes(paragraphs[0]?.runs ?? []),
-			firstRun,
+			firstLineLargestRun(paragraphs),
 			fonts,
 		);
 		const { left, width } = horizontalPlacement(item.box, style, rotation);
@@ -934,21 +934,37 @@ function emojiDrop({ ascent, descent }: { ascent: number; descent: number }) {
 }
 
 /**
- * How far below a line's top, in px, PowerPoint draws its first baseline at
- * a line spacing multiple: single spacing keeps the font's descent share of
- * the line below the baseline, tighter spacing takes room from above it, and
- * looser spacing adds room above once SPACED_BASELINE of the pitch is lower.
+ * How far below a line's top, in px, PowerPoint draws its first baseline: up
+ * to single spacing for the line's largest font, it keeps that font's
+ * descent share of single spacing below the baseline, taking room from above
+ * it, unless `loose` of the pitch is lower; any looser, it puts the baseline
+ * `loose` of the way down the pitch.
  */
 function firstBaseline(
 	{ singleDescent }: { singleDescent: number },
 	size: number,
 	pitch: number,
+	loose = SPACED_BASELINE,
 ) {
 	const single = SINGLE_LINE_PITCH * size;
-	return Math.max(
-		SPACED_BASELINE * pitch,
-		Math.min(pitch, single) - singleDescent * single,
-	);
+	// Spacing multiples are written to the thousandth.
+	return Math.round((pitch / single) * 1000) > 1000
+		? loose * pitch
+		: Math.max(loose * pitch, pitch - singleDescent * single);
+}
+
+/** The first line's largest run, other than super- and subscripts, which PowerPoint keeps room below the line's baseline for. */
+function firstLineLargestRun(paragraphs: Paragraph[]) {
+	const runs = paragraphs.find((paragraph) => paragraph.runs.length)?.runs;
+	if (!runs) {
+		throw new Error("Text items need at least one run.");
+	}
+
+	const end = runs.findIndex((run, index) => index > 0 && run.lineBreak);
+	const line = runs.slice(0, end === -1 ? undefined : end);
+	return (
+		line.some((run) => !run.script) ? line.filter((run) => !run.script) : line
+	).reduce((largest, run) => (run.size > largest.size ? run : largest));
 }
 
 /** Where the box's top goes so PowerPoint's first baseline lands on the browser's, and how tall it is. */
@@ -968,10 +984,13 @@ function verticalPlacement(
 			: item.baselines;
 	const metrics = fonts.metrics(font);
 	const { ascent, descent } = metrics;
-	// Exact spacing, for lines mixing sizes, keeps the fraction of the pitch measured for it.
-	const firstLine = exactSpacing
-		? metrics.baseline * style.lineHeight
-		: firstBaseline(metrics, size, style.lineHeight);
+	// Loose exact spacing, for lines mixing sizes, keeps the fraction of the pitch measured for it.
+	const firstLine = firstBaseline(
+		metrics,
+		size,
+		style.lineHeight,
+		exactSpacing ? metrics.baseline : SPACED_BASELINE,
+	);
 	if (rotation && style.lineHeight) {
 		const top =
 			box.y +

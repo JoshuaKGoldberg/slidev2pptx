@@ -366,6 +366,8 @@ describe(writePptx, () => {
 		[25.92, 40 - (25.92 - 0.2 * 28.8)],
 		// Looser spacing puts the baseline 0.746 down the pitch.
 		[43.2, 40 - 0.746 * 43.2],
+		// Even just looser than single spacing.
+		[30, 40 - 0.746 * 30],
 	])(
 		"puts the first baseline where PowerPoint does at a %s px pitch",
 		async (lineHeight, top) => {
@@ -378,6 +380,52 @@ describe(writePptx, () => {
 				[...(xml ?? "").matchAll(/<a:off x="\d+" y="(\d+)"/g)].at(-1)?.[1],
 			);
 
+			expect(y / 12700).toBeCloseTo(top, 1);
+		},
+	);
+
+	it.each([
+		// Up to single spacing for the line's largest font (72px), the 0.2 descent share of it stays below the baseline.
+		[
+			66.8,
+			[run("Small ", { size: 54 }), run("large", { size: 60 })],
+			100 - (66.8 - 0.2 * 72),
+		],
+		// The largest font counts, not the first.
+		[
+			66.8,
+			[run("Large ", { size: 60 }), run("small", { size: 54 })],
+			100 - (66.8 - 0.2 * 72),
+		],
+		// Only the first line's fonts count.
+		[
+			66.8,
+			[
+				run("Small ", { size: 54 }),
+				run("large", { lineBreak: "forced", size: 60 }),
+			],
+			100 - 0.75 * 66.8,
+		],
+		// Any looser, the baseline goes the font's measured fraction down the pitch.
+		[
+			74,
+			[run("Small ", { size: 54 }), run("large", { size: 60 })],
+			100 - 0.75 * 74,
+		],
+	])(
+		"puts an exactly spaced first baseline where PowerPoint does at a %s px pitch",
+		async (lineHeight, runs, top) => {
+			const xml = await slideXml([
+				textItem([runs], {
+					baselines: [100],
+					style: { ...style, lineHeight, nowrap: false, wrapWidth: 400 },
+				}),
+			]);
+			const y = Number(
+				[...(xml ?? "").matchAll(/<a:off x="\d+" y="(\d+)"/g)].at(-1)?.[1],
+			);
+
+			expect(xml).toContain("<a:spcPts");
 			expect(y / 12700).toBeCloseTo(top, 1);
 		},
 	);
