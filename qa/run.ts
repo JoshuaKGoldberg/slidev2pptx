@@ -7,6 +7,7 @@
  * node qa/run.ts 2026-05-21-what-s-new-in-typescript-6-0 --from build
  * ```
  */
+import { parse } from "@slidev/parser";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -192,6 +193,18 @@ await step("compare", paths.report, async () => {
 		path.join(directory, "pptx-png-again"),
 	);
 
+	// PowerPoint's export of the original shows shapes that exit on a click, which a slide's last state hides.
+	const { slides: parsed } = await parse(
+		await fs.readFile(paths.entry, "utf8"),
+		paths.entry,
+	);
+	const exiting = new Set(
+		parsed
+			.filter(({ frontmatter }) => !frontmatter.hide && !frontmatter.disabled)
+			.flatMap(({ content }, index) =>
+				/\bv-(?:click|after)\.hide\b/.test(content) ? [index + 1] : [],
+			),
+	);
 	const states = [];
 	for (const [index, file] of slidev.entries()) {
 		const name = path.basename(file, ".png");
@@ -269,6 +282,7 @@ await step("compare", paths.report, async () => {
 
 		states.push({
 			click,
+			exits: exiting.has(slide) || undefined,
 			final,
 			finalVerdict: final ? finalVerdict : undefined,
 			name,
@@ -312,13 +326,16 @@ await step("compare", paths.report, async () => {
 			pass: states.filter((state) => state.verdict === "pass").length,
 			review: states.filter((state) => state.verdict === "review").length,
 		},
-		// Each slide's last state against the original's export, for the converter (step 1) and end to end.
+		// Each slide's last state against the original's export, for the converter (step 1) and end to end,
+		// but for slides whose shapes exit, which the export shows.
 		summaryAgainstOriginal: {
 			final: verdictCounts(
-				states.flatMap(({ final }) => (final ? [final] : [])),
+				states.flatMap(({ exits, final }) => (final && !exits ? [final] : [])),
 			),
 			step1: verdictCounts(
-				states.flatMap(({ original }) => (original ? [original] : [])),
+				states.flatMap(({ exits, original }) =>
+					original && !exits ? [original] : [],
+				),
 			),
 		},
 		timings,
