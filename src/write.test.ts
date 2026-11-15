@@ -1365,6 +1365,25 @@ describe(writePptx, () => {
 		expect((y + height / 2) / 12700).toBeCloseTo(40, 2);
 	});
 
+	it("places rotated text by the browser's line box, not the size it writes a lowered emoji at", async () => {
+		const [, y] =
+			/<a:xfrm rot="5400000"><a:off x="\d+" y="(\d+)"\/>/
+				.exec(
+					(await slideXml([
+						textItem([[run("Hi 🤩")]], {
+							baselines: undefined,
+							rotation: 90,
+							style: { ...style, lineHeight: 28.8, nowrap: false },
+						}),
+					])) ?? "",
+				)
+				?.map(Number) ?? [];
+
+		// The browser's baseline is the 19px ascent of 24px text plus half its 4.8px leading, rounded down, below its top;
+		// PowerPoint's is 0.75 down its pitch, loosened 2% from single spacing, as the 36px emoji it writes is far from single spacing.
+		expect(y / 12700).toBeCloseTo(20 + 19 + 2 - 0.75 * 29.376, 2);
+	});
+
 	it("makes a slide's first heading its title", async () => {
 		expect(
 			await slideXml([

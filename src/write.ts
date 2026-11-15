@@ -636,6 +636,10 @@ function createItemWriter({
 			exactSpacing,
 			firstLineLargestRun(paragraphs),
 			fonts,
+			{
+				lineHeight: style.lineHeight,
+				run: firstLineLargestRun(paragraphs, false),
+			},
 		);
 		// A loosened pitch drifts each later line down, so a lone paragraph's lines are centered on the browser's.
 		const lines = item.kind === "text" ? (item.baselines?.length ?? 0) : 0;
@@ -1087,18 +1091,18 @@ function firstBaseline(
 }
 
 /** The first line's largest run as written, other than super- and subscripts, which PowerPoint keeps room below the line's baseline for. */
-function firstLineLargestRun(paragraphs: Paragraph[]) {
+function firstLineLargestRun(paragraphs: Paragraph[], written = true) {
 	const runs = paragraphs.find((paragraph) => paragraph.runs.length)?.runs;
 	if (!runs) {
 		throw new Error("Text items need at least one run.");
 	}
 
 	const end = runs.findIndex((run, index) => index > 0 && run.lineBreak);
-	// Emoji lowered among text are written larger, which PowerPoint sizes their line by.
+	// Emoji lowered among text are written larger, which PowerPoint sizes their line by; browsers draw them at their own size.
 	const line = withLoweredEmoji(
 		runs.slice(0, end === -1 ? undefined : end),
 	).map(({ lowered, ...run }): Run =>
-		lowered && !run.script
+		written && lowered && !run.script
 			? { ...run, size: OFFSET_RUN_GROWTH * run.size }
 			: run,
 	);
@@ -1107,7 +1111,11 @@ function firstLineLargestRun(paragraphs: Paragraph[]) {
 	).reduce((largest, run) => (run.size > largest.size ? run : largest));
 }
 
-/** Where the box's top goes so PowerPoint's first baseline lands on the browser's, and how tall it is. */
+/**
+ * Where the box's top goes so PowerPoint's first baseline lands on the browser's, and how tall it is.
+ * The style's line height and the run are as written to PowerPoint; a turned box, whose baselines
+ * aren't measured, places the browser's by its own line height and first line's largest run.
+ */
 function verticalPlacement(
 	item: CodeItem | ListItem | TextItem,
 	style: TextStyle,
@@ -1115,6 +1123,7 @@ function verticalPlacement(
 	exactSpacing: boolean,
 	{ font, size }: Run,
 	fonts: FontBook,
+	browser: { lineHeight: number; run: Run },
 ) {
 	const { box } = item;
 	const baselines =
@@ -1123,7 +1132,6 @@ function verticalPlacement(
 					?.baselines
 			: item.baselines;
 	const metrics = fonts.metrics(font);
-	const { ascent, descent } = metrics;
 	// Loose exact spacing, for lines mixing sizes, keeps the fraction of the pitch measured for it.
 	const firstLine = firstBaseline(
 		metrics,
@@ -1132,11 +1140,12 @@ function verticalPlacement(
 		exactSpacing ? metrics.baseline : SPACED_BASELINE,
 	);
 	if (rotation && style.lineHeight) {
+		const shown = fonts.metrics(browser.run.font);
 		const { above } = inlineExtentOf(
-			font,
-			ascent * size,
-			descent * size,
-			style.lineHeight,
+			browser.run.font,
+			shown.ascent * browser.run.size,
+			shown.descent * browser.run.size,
+			browser.lineHeight,
 		);
 		const top = box.y + above - firstLine;
 		// PowerPoint turns a box about its center, as CSS does, so it grows as much below as above.
