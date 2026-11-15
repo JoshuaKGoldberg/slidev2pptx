@@ -59,8 +59,10 @@ async function runDeck(id: string) {
 				stderr?: string;
 				stdout?: string;
 			};
-			await fs.writeFile(log, `${stdout}\n${stderr}`);
-			console.log(`${id}: attempt ${String(attempt)} failed`);
+			// Kept apart from the deck's log, which a successful retry overwrites.
+			const failure = path.join(runs, `${id}.attempt-${String(attempt)}.log`);
+			await fs.writeFile(failure, `${stdout}\n${stderr}`);
+			console.log(`${id}: attempt ${String(attempt)} failed; see ${failure}`);
 		}
 	}
 
