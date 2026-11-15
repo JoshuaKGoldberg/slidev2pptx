@@ -128,6 +128,7 @@ export function convertText(
 	let list: undefined | { items: string[]; ordered: boolean; start: number };
 	let lastSize = 18;
 	let lastTrim = 0;
+	let pendingAfter = 0;
 	const numbering = new Map<number, number>();
 
 	const flushList = () => {
@@ -176,22 +177,29 @@ export function convertText(
 			size,
 			lineSpacingReduction,
 		);
-		// PowerPoint leaves out a text body's first paragraph's space before.
+		// PowerPoint leaves out a text body's first paragraph's space before, and adds a paragraph's space after
+		// to the next one's space before, where CSS would collapse the two margins (as in lists) to the larger.
+		// A gap inferred from where pptx-svg drew the lines already holds both.
+		const declaredBefore =
+			index === 0
+				? undefined
+				: spacingOf(propertyChildOf(levels, "a:spcBef"), size);
 		const spaceBefore =
 			index === 0
 				? undefined
-				: (spacingOf(propertyChildOf(levels, "a:spcBef"), size) ??
-					(previous && first
+				: declaredBefore !== undefined
+					? declaredBefore + pendingAfter
+					: previous && first
 						? Math.max(
 								0,
 								(tops.get(index) ?? first.y) - previous.y - lineHeight,
 							)
-						: undefined));
-		// Nor its last paragraph's space after, which would lift centered and bottom-anchored text.
-		const spaceAfter =
+						: pendingAfter || undefined;
+		// Nor does it keep its last paragraph's space after, which would lift centered and bottom-anchored text.
+		pendingAfter =
 			index === paragraphs.length - 1
-				? undefined
-				: spacingOf(propertyChildOf(levels, "a:spcAft"), size);
+				? 0
+				: (spacingOf(propertyChildOf(levels, "a:spcAft"), size) ?? 0);
 
 		// Indents and bullets inherited from layouts and masters only show in where pptx-svg drew them.
 		// Where a centered or right-aligned line starts is its alignment's doing, not a margin.
@@ -236,12 +244,18 @@ export function convertText(
 					? undefined
 					: (paragraphFont?.weight ?? 700),
 			"line-height": px(lineHeight),
-			"margin-bottom": spaceAfter ? px(spaceAfter) : undefined,
 			"margin-top": spaceBefore ? px(spaceBefore) : undefined,
 			"text-align": align === "left" ? undefined : align,
 			...(shift ? { position: "relative", top: px(shift) } : {}),
 		});
-		const content = runs.html || "<br>";
+		// Vue drops text of only spaces, which PowerPoint gives a line.
+		const content =
+			(textOf(paragraph).trim() === ""
+				? runs.html.replaceAll(
+						/>( +)</g,
+						(_, spaces: string) => `>${"\u00A0".repeat(spaces.length)}<`,
+					)
+				: runs.html) || "<br>";
 		// PowerPoint draws no marker for an empty paragraph, nor counts it.
 		const bullet = textOf(paragraph)
 			? (bulletOf(bulletLevelOf(levels)) ??
@@ -509,7 +523,13 @@ function convertRuns(
 				: "<br>",
 		)
 		.join("");
-	return { first, html, main, size };
+	// PowerPoint gives a paragraph that ends with a line break an empty last line, which a browser only draws for a second break.
+	return {
+		first,
+		html: pieces.at(-1) === undefined && pieces.length ? `${html}<br>` : html,
+		main,
+		size,
+	};
 }
 
 /**
@@ -605,18 +625,20 @@ function renderRun(
 	text: string,
 ) {
 	const properties = childNamed(run, "a:rPr");
-	const font = style.font ? context.fonts.resolve(style.font) : undefined;
-	const weight = font?.weight ?? (style.bold ? 700 : undefined);
+	// Runs pptx-svg names no font for take the theme's body font.
+	const font = context.fonts.resolve(
+		style.font ?? context.theme.font("+mn-lt"),
+	);
+	const weight = font.weight ?? (style.bold ? 700 : undefined);
 	const baseline = Number(
 		rendered?.getAttribute("data-ooxml-baseline") ??
 			properties?.getAttribute("baseline") ??
 			0,
 	);
-	const italic = style.italic || !!font?.italic;
+	const italic = style.italic || !!font.italic;
 	const spacing =
 		Number(rendered?.getAttribute("data-ooxml-char-spacing") ?? 0) / 100 +
-		(font &&
-		(weight ?? 400) >= 600 &&
+		((weight ?? 400) >= 600 &&
 		context.fonts.synthesizesBold(font.family, italic)
 			? SYNTHETIC_BOLD_ADVANCE * style.size
 			: 0);
@@ -655,13 +677,12 @@ function renderRun(
 		"background-color": highlight ? `#${highlight}` : undefined,
 		color:
 			style.color ?? context.theme.color(childNamed(properties, "a:solidFill")),
-		"font-family": font
-			? `'${font.family.replaceAll("'", "\\'")}'${TEXT_PICTOGRAPH.test(text) ? `, '${EMOJI_FONT}'` : ""}`
-			: undefined,
+		"font-family": `'${font.family.replaceAll("'", "\\'")}'${TEXT_PICTOGRAPH.test(text) ? `, '${EMOJI_FONT}'` : ""}`,
 		"font-size": px(style.size),
 		"font-style": italic ? "italic" : undefined,
 		"font-variant": cap === "small" ? "small-caps" : undefined,
-		"font-weight": weight && weight !== 400 ? weight : undefined,
+		// A run that isn't bold keeps its own weight in a paragraph whose first run is.
+		"font-weight": weight && weight !== 400 ? weight : 400,
 		"letter-spacing": spacing ? px(Math.round(spacing * 100) / 100) : undefined,
 		"text-decoration": decorations.length ? decorations.join(" ") : undefined,
 		"text-shadow": textShadowOf(childNamed(effects, "a:outerShdw")),

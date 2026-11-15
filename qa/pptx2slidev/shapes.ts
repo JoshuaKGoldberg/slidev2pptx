@@ -324,7 +324,8 @@ function drawBox(
 			? `${px(strokeWidth)} ${dashOf(drawn)} ${stroke}`
 			: undefined,
 		"border-radius": radius ? px(radius + grow) : undefined,
-		opacity: opacityOf(drawn),
+		// pptx-svg's rgba fills already carry their alpha.
+		opacity: fill.startsWith("rgba(") ? undefined : opacityOf(drawn),
 	})}"></div>`;
 }
 
@@ -434,9 +435,9 @@ function tilesFor(context: SlideContext, shape: Element) {
 	const attribute = (name: string, fallback: number) =>
 		Number(tile.getAttribute(name) ?? fallback);
 	const width =
-		(metrics.width / metrics.dpiX) * 96 * (attribute("sx", 100_000) / 100_000);
+		(metrics.width / metrics.dpiX) * 72 * (attribute("sx", 100_000) / 100_000);
 	const height =
-		(metrics.height / metrics.dpiY) * 96 * (attribute("sy", 100_000) / 100_000);
+		(metrics.height / metrics.dpiY) * 72 * (attribute("sy", 100_000) / 100_000);
 	const box = {
 		height: numberOf(shape, "cy") / EMU_PER_PX,
 		width: numberOf(shape, "cx") / EMU_PER_PX,
