@@ -1,4 +1,5 @@
 import type { Matrix, Placement } from "./geometry.ts";
+import type { ImageMetrics } from "./media.ts";
 import type { TextContext } from "./text.ts";
 import type { SlideTiming } from "./timing.ts";
 
@@ -12,6 +13,8 @@ export interface SlideContext extends TextContext {
 	copyMedia: (relationshipId: string) => string | undefined;
 	/** The slide SVG's definitions by id, for shapes drawn as SVG that reference gradients or markers. */
 	defs: Map<string, string>;
+	/** An image's pixel size and resolution, by its relationship id, for tiled picture fills. */
+	imageMetrics: (relationshipId: string) => ImageMetrics | undefined;
 	/** The slide XML's shape elements by their cNvPr id. */
 	raw: Map<string, Element>;
 	timing: SlideTiming;
@@ -332,10 +335,13 @@ function drawSvg(
 		(placement.rotation ? radius : placement.height / 2) + margin;
 	const left = centerX - halfWidth;
 	const top = centerY - halfHeight;
-	const content = [...shape.children]
-		.filter((child) => child.tagName !== "text")
-		.map((child) => child.outerHTML)
-		.join("");
+	const retile = tilesFor(context, shape);
+	const content = retile(
+		[...shape.children]
+			.filter((child) => child.tagName !== "text")
+			.map((child) => child.outerHTML)
+			.join(""),
+	);
 	const opened = chain
 		.map((transform) => `<g transform="${escapeAttribute(transform)}">`)
 		.join("");
@@ -346,7 +352,74 @@ function drawSvg(
 			top: px(top),
 			width: px(halfWidth * 2),
 		},
-	)}">${definitionsFor(context.defs, content)}${opened}${content}${"</g>".repeat(chain.length)}</svg>`;
+	)}">${retile(definitionsFor(context.defs, content))}${opened}${content}${"</g>".repeat(chain.length)}</svg>`;
+}
+
+/**
+ * Resizes a tiled picture fill's patterns in SVG markup as PowerPoint tiles it:
+ * pptx-svg sizes tiles without the image's resolution, where PowerPoint scales the image's
+ * size in inches, then aligns the first tile in the shape's box and offsets it.
+ */
+function tilesFor(context: SlideContext, shape: Element) {
+	const raw = context.raw.get(shape.getAttribute("data-ooxml-nv-id") ?? "");
+	const blipFill = childNamed(childNamed(raw, "p:spPr"), "a:blipFill");
+	const tile = childNamed(blipFill, "a:tile");
+	const metrics = context.imageMetrics(
+		childNamed(blipFill, "a:blip")?.getAttribute("r:embed") ?? "",
+	);
+	if (!tile || !metrics) {
+		return (markup: string) => markup;
+	}
+
+	if ((tile.getAttribute("flip") ?? "none") !== "none") {
+		context.lose(
+			`Tiled the picture fill of shape ${shape.getAttribute("data-ooxml-nv-id") ?? ""} without mirroring its tiles`,
+		);
+	}
+
+	const attribute = (name: string, fallback: number) =>
+		Number(tile.getAttribute(name) ?? fallback);
+	const width =
+		(metrics.width / metrics.dpiX) * 96 * (attribute("sx", 100_000) / 100_000);
+	const height =
+		(metrics.height / metrics.dpiY) * 96 * (attribute("sy", 100_000) / 100_000);
+	const box = {
+		height: numberOf(shape, "cy") / EMU_PER_PX,
+		width: numberOf(shape, "cx") / EMU_PER_PX,
+		x: numberOf(shape, "x") / EMU_PER_PX,
+		y: numberOf(shape, "y") / EMU_PER_PX,
+	};
+	const align = tile.getAttribute("algn") ?? "tl";
+	const share = (start: string, end: string) =>
+		align.includes(end) ? 1 : align.includes(start) ? 0 : 0.5;
+	const round = (value: number) => String(Math.round(value * 100) / 100);
+	const sized = {
+		height: round(height),
+		width: round(width),
+		x: round(
+			box.x +
+				share("l", "r") * (box.width - width) +
+				attribute("tx", 0) / EMU_PER_PX,
+		),
+		y: round(
+			box.y +
+				share("t", "b") * (box.height - height) +
+				attribute("ty", 0) / EMU_PER_PX,
+		),
+	};
+
+	return (markup: string) =>
+		markup.replaceAll(/<pattern\b[^>]*>\s*<image\b[^>]*>/g, (opening) => {
+			const image = opening.indexOf("<image");
+			return opening.replaceAll(
+				/\b(x|y|width|height)="[^"]*"/g,
+				(pair, name: keyof typeof sized, offset: number) =>
+					// The image keeps its place in its tile; only its size changes.
+					offset > image && (name === "x" || name === "y")
+						? pair
+						: `${name}="${sized[name]}"`,
+			);
+		});
 }
 
 /** The &lt;defs> SVG markup needs: only those it references, and those they reference, as some (like a background's picture fill) are huge. */

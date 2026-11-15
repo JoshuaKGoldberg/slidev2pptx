@@ -12,7 +12,11 @@ import {
 /** The parts a slide's text inherits paragraph properties from. */
 export interface InheritanceSources {
 	layout: Element | undefined;
+	/** The layout's part name in the package, like ppt/slideLayouts/slideLayout2.xml. */
+	layoutPath?: string;
 	master: Element | undefined;
+	/** The master's part name in the package, like ppt/slideMasters/slideMaster1.xml. */
+	masterPath?: string;
 	presentation: Element | undefined;
 }
 
@@ -47,7 +51,9 @@ export async function loadInheritance(
 		: undefined;
 	return {
 		layout: await load(layoutPath),
+		layoutPath,
 		master: await load(masterPath),
+		masterPath,
 		presentation,
 	};
 }

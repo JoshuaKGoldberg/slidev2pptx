@@ -12,16 +12,23 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { emfToSvg, PptxRenderer, wmfToSvg } from "pptx-svg";
 
-import type { Visibility } from "./timing.ts";
+import type { SlideContext } from "./shapes.ts";
+import type { SlideTiming, Visibility } from "./timing.ts";
 
 import { createFontResolver } from "./fonts.ts";
 import { IDENTITY } from "./geometry.ts";
 import { inheritedLevels, loadInheritance } from "./inheritance.ts";
+import { type ImageMetrics, imageMetrics } from "./media.ts";
 import { withoutEmptyTables } from "./sanitize.ts";
 import { convertShape } from "./shapes.ts";
 import { readTiming } from "./timing.ts";
 import { convertTransition } from "./transitions.ts";
-import { descendantsNamed, parseXml } from "./xml.ts";
+import {
+	childNamed,
+	descendantNamed,
+	descendantsNamed,
+	parseXml,
+} from "./xml.ts";
 
 export interface ConversionLog {
 	fonts: { missing: string[] };
@@ -65,6 +72,7 @@ export async function convertDeck(input: string, output: string) {
 		(await zip.file("ppt/presentation.xml")?.async("string")) ?? "",
 	);
 	const slidePaths = await slideOrder(zip, presentation);
+	const media = await tiledMedia(zip);
 	const copied = new Map<string, string>();
 	const writes: Promise<void>[] = [];
 	const slides: { frontmatter: string[]; html: string; notes: string }[] = [];
@@ -86,15 +94,6 @@ export async function convertDeck(input: string, output: string) {
 			...timing.dropped.map((effect) => `Dropped animation: ${effect}`),
 		);
 
-		const raw = new Map<string, Element>();
-		for (const properties of descendantsNamed(slide, "p:cNvPr")) {
-			const shape = properties.parentElement?.parentElement;
-			const id = properties.getAttribute("id");
-			if (shape && id) {
-				raw.set(id, shape);
-			}
-		}
-
 		const svg = parseXml(renderer.renderSlideSvg(index)).documentElement;
 		const defs = new Map(
 			[...svg.children]
@@ -105,57 +104,120 @@ export async function convertDeck(input: string, output: string) {
 					return id ? [[id, child.outerHTML] as const] : [];
 				}),
 		);
-		const context = {
-			copyMedia: (relationshipId: string) => {
-				const target = rels.get(relationshipId);
-				if (!target || /^https?:/.test(target)) {
-					return target;
-				}
+		const copyMedia = (
+			partRels: Map<string, string>,
+			relationshipId: string,
+		) => {
+			const target = partRels.get(relationshipId);
+			if (!target || /^https?:/.test(target)) {
+				return target;
+			}
 
-				const existing = copied.get(target);
-				if (existing) {
-					return existing;
-				}
+			const existing = copied.get(target);
+			if (existing) {
+				return existing;
+			}
 
-				// Vite won't serve Windows metafiles, so they become SVG.
-				const metafile = /\.(?:emf|wmf)$/i.exec(target)?.[0].toLowerCase();
-				const name = `/media/${path.basename(target)}${metafile ? ".svg" : ""}`;
-				copied.set(target, name);
-				const file = zip.file(target);
-				if (!file) {
-					return undefined;
-				}
+			// Vite won't serve Windows metafiles, so they become SVG.
+			const metafile = /\.(?:emf|wmf)$/i.exec(target)?.[0].toLowerCase();
+			const name = `/media/${path.basename(target)}${metafile ? ".svg" : ""}`;
+			copied.set(target, name);
+			const file = zip.file(target);
+			if (!file) {
+				return undefined;
+			}
 
-				writes.push(
-					file
-						.async("nodebuffer")
-						.then((buffer) =>
-							fs.writeFile(
-								path.join(output, "public", name),
-								metafile
-									? (metafile === ".wmf" ? wmfToSvg : emfToSvg)(buffer) ||
-											`<svg xmlns="http://www.w3.org/2000/svg"/>`
-									: buffer,
-							),
+			writes.push(
+				file
+					.async("nodebuffer")
+					.then((buffer) =>
+						fs.writeFile(
+							path.join(output, "public", name),
+							metafile
+								? (metafile === ".wmf" ? wmfToSvg : emfToSvg)(buffer) ||
+										`<svg xmlns="http://www.w3.org/2000/svg"/>`
+								: buffer,
 						),
-				);
-				return name;
-			},
+					),
+			);
+			return name;
+		};
+
+		const contextOf = (
+			partRels: Map<string, string>,
+			raw: Map<string, Element>,
+			partTiming: SlideTiming,
+		): SlideContext => ({
+			copyMedia: (relationshipId: string) =>
+				copyMedia(partRels, relationshipId),
 			defs,
 			fonts,
+			imageMetrics: (relationshipId: string) =>
+				media.get(partRels.get(relationshipId) ?? ""),
 			inherited: (body: Element | undefined, level: number) =>
 				inheritedLevels(sources, body, level),
 			lose: (loss: string) => losses.push(loss),
 			raw,
-			resolveLink: (id: string) => rels.get(id),
-			timing,
+			resolveLink: (id: string) => partRels.get(id),
+			timing: partTiming,
 			withVisibility,
+		});
+		const context = contextOf(rels, shapesById(slide), timing);
+
+		// pptx-svg draws a layout's and master's own shapes before the slide's, with negative indexes.
+		// Their ids can repeat the slide's, so each is read from its own part, without the slide's animations.
+		const inheritedParts = await Promise.all(
+			(
+				[
+					[sources.layout, sources.layoutPath],
+					[sources.master, sources.masterPath],
+				] as const
+			).flatMap(([root, part]) =>
+				root && part
+					? [
+							relationships(zip, part).then((partRels) => ({
+								context: contextOf(partRels, shapesById(root), staticTiming()),
+								rels: partRels,
+								root,
+							})),
+						]
+					: [],
+			),
+		);
+		const contextFor = (shape: Element) => {
+			if (Number(shape.getAttribute("data-ooxml-shape-idx") ?? 0) >= 0) {
+				return context;
+			}
+
+			const id = shape.getAttribute("data-ooxml-nv-id") ?? "";
+			const name = shape.getAttribute("data-ooxml-nv-name");
+			const candidates = inheritedParts.filter(({ context }) =>
+				context.raw.has(id),
+			);
+			const match =
+				candidates.find(
+					({ context }) =>
+						descendantNamed(context.raw.get(id), "p:cNvPr")?.getAttribute(
+							"name",
+						) === name,
+				) ?? candidates.at(0);
+			if (!match) {
+				losses.push(
+					`Couldn't find layout or master shape ${id} ("${name ?? ""}"), so it's drawn without its text and pictures`,
+				);
+			}
+
+			return match?.context ?? contextOf(rels, new Map(), staticTiming());
 		};
 
-		const background = backgroundOf(svg);
+		const background = backgroundOf(svg, defs, {
+			copyMedia,
+			lose: (loss) => losses.push(loss),
+			parts: [{ rels, root: slide }, ...inheritedParts],
+		});
 		const shapes = [...svg.children]
 			.filter((child) => child.hasAttribute("data-ooxml-shape-type"))
-			.map((child) => convertShape(context, child, IDENTITY, []))
+			.map((child) => convertShape(contextFor(child), child, IDENTITY, []))
 			.join("\n");
 
 		const hidden = renderer.isSlideHidden(index);
@@ -258,14 +320,254 @@ export async function convertDeck(input: string, output: string) {
 	);
 }
 
-function backgroundOf(svg: Element) {
+/** Where a slide's background can come from, most specific first: the slide, its layout, then its master. */
+interface BackgroundPart {
+	rels: Map<string, string>;
+	root: Element;
+}
+
+/** The slide's background as inline CSS for its root element. */
+function backgroundOf(
+	svg: Element,
+	defs: Map<string, string>,
+	{
+		copyMedia,
+		lose,
+		parts,
+	}: {
+		copyMedia: (
+			rels: Map<string, string>,
+			relationshipId: string,
+		) => string | undefined;
+		lose: (loss: string) => void;
+		parts: BackgroundPart[];
+	},
+) {
+	const width = Number(svg.getAttribute("width"));
+	const height = Number(svg.getAttribute("height"));
+
+	// pptx-svg leaves picture backgrounds undrawn, so they're read from whichever part sets the background.
+	const owner = parts.find(({ root }) =>
+		childNamed(childNamed(root, "p:cSld"), "p:bg"),
+	);
+	const blipFill = descendantNamed(
+		childNamed(childNamed(owner?.root, "p:cSld"), "p:bg"),
+		"a:blipFill",
+	);
+	if (owner && blipFill) {
+		return pictureBackground(
+			blipFill,
+			{ height, width },
+			(id) => copyMedia(owner.rels, id),
+			lose,
+		);
+	}
+
 	const rect = [...svg.children].find(
 		(child) =>
 			child.tagName === "rect" &&
 			child.getAttribute("width") === svg.getAttribute("width"),
 	);
 	const fill = rect?.getAttribute("fill");
-	return fill && !fill.startsWith("url(") ? `background-color:${fill}` : "";
+	if (!fill || fill === "none") {
+		return "";
+	}
+
+	const reference = /^url\(#([^)]+)\)$/.exec(fill)?.[1];
+	if (!reference) {
+		return `background-color:${fill}`;
+	}
+
+	const markup = defs.get(reference);
+	const gradient = markup ? cssGradient(markup, { height, width }) : undefined;
+	if (!gradient) {
+		lose(`Dropped the slide's background fill ${reference}`);
+		return "";
+	}
+
+	return `background-image:${gradient}`;
+}
+
+/** A background picture, stretched into its fill rectangle and cropped by its source rectangle, as CSS. */
+function pictureBackground(
+	blipFill: Element,
+	slide: { height: number; width: number },
+	copyMedia: (relationshipId: string) => string | undefined,
+	lose: (loss: string) => void,
+) {
+	const blip = childNamed(blipFill, "a:blip");
+	const url = copyMedia(blip?.getAttribute("r:embed") ?? "");
+	if (!url) {
+		lose("Dropped the slide's background picture, as it couldn't be copied");
+		return "";
+	}
+
+	if (childNamed(blipFill, "a:tile")) {
+		lose("Stretched the slide's tiled background picture");
+	}
+
+	if (
+		blip &&
+		[...blip.children].some(
+			(effect) => effect.tagName !== "a:lum" || effect.attributes.length,
+		)
+	) {
+		lose(
+			`Dropped ${[...blip.children].map((effect) => effect.tagName.replace("a:", "")).join(", ")} on the slide's background picture`,
+		);
+	}
+
+	// Both rectangles' edges are insets in thousandths of a percent; negative ones reach past the slide.
+	const edges = (element: Element | undefined) =>
+		["l", "t", "r", "b"].map(
+			(edge) => Number(element?.getAttribute(edge) ?? 0) / 100_000,
+		);
+	const [left, top, right, bottom] = edges(
+		childNamed(childNamed(blipFill, "a:stretch"), "a:fillRect"),
+	);
+	const [cropLeft, cropTop, cropRight, cropBottom] = edges(
+		childNamed(blipFill, "a:srcRect"),
+	);
+	const shownWidth = slide.width * (1 - left - right);
+	const shownHeight = slide.height * (1 - top - bottom);
+	const imageWidth = shownWidth / (1 - cropLeft - cropRight);
+	const imageHeight = shownHeight / (1 - cropTop - cropBottom);
+	const round = (value: number) => `${String(Math.round(value * 100) / 100)}px`;
+	return [
+		`background-image:url(${url})`,
+		`background-position:${round(slide.width * left - cropLeft * imageWidth)} ${round(slide.height * top - cropTop * imageHeight)}`,
+		"background-repeat:no-repeat",
+		`background-size:${round(imageWidth)} ${round(imageHeight)}`,
+	].join(";");
+}
+
+/**
+ * A pptx-svg linear gradient over the slide as a CSS linear-gradient().
+ * pptx-svg rotates gradients in their bounding box, which stretches to the slide,
+ * so the CSS angle is the bounding box direction's normal in slide pixels.
+ */
+function cssGradient(markup: string, slide: { height: number; width: number }) {
+	const gradient = parseXml(markup).documentElement;
+	if (
+		gradient.tagName !== "linearGradient" ||
+		gradient.getAttribute("gradientUnits") === "userSpaceOnUse"
+	) {
+		return undefined;
+	}
+
+	const coordinate = (name: string, fallback: number) => {
+		const value = gradient.getAttribute(name);
+		if (!value) {
+			return fallback;
+		}
+
+		return value.endsWith("%") ? Number.parseFloat(value) / 100 : Number(value);
+	};
+
+	const turn =
+		(Number(
+			/rotate\(\s*(-?[\d.]+)/.exec(
+				gradient.getAttribute("gradientTransform") ?? "",
+			)?.[1] ?? 0,
+		) *
+			Math.PI) /
+		180;
+	const run = coordinate("x2", 1) - coordinate("x1", 0);
+	const rise = coordinate("y2", 0) - coordinate("y1", 0);
+	const dx = run * Math.cos(turn) - rise * Math.sin(turn);
+	const dy = run * Math.sin(turn) + rise * Math.cos(turn);
+	const degrees =
+		((Math.atan2(dx * slide.height, -dy * slide.width) * 180) / Math.PI + 360) %
+		360;
+
+	// CSS clamps a stop placed before an earlier one, so stops go in order; pptx-svg keeps OOXML's, which needn't be.
+	const stops = [...gradient.children]
+		.filter((child) => child.tagName === "stop")
+		.map((stop) => {
+			const offset = stop.getAttribute("offset") ?? "0";
+			const position = offset.endsWith("%")
+				? Number.parseFloat(offset)
+				: Number(offset) * 100;
+			const color = stop.getAttribute("stop-color") ?? "#000000";
+			const opacity = Number(stop.getAttribute("stop-opacity") ?? 1);
+			return { color: withOpacity(color, opacity), position };
+		})
+		.sort((a, b) => a.position - b.position)
+		.map(
+			({ color, position }) =>
+				`${color} ${String(Math.round(position * 1000) / 1000)}%`,
+		);
+	if (!stops.length) {
+		return undefined;
+	}
+
+	return `linear-gradient(${String(Math.round(degrees * 1000) / 1000)}deg, ${stops.join(", ")})`;
+}
+
+/** A CSS color faded by an opacity, as rgba() when it's a hex color. */
+function withOpacity(color: string, opacity: number) {
+	const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
+	if (opacity >= 1 || !hex) {
+		return color;
+	}
+
+	const channels = [0, 2, 4].map((start) =>
+		Number.parseInt(hex.slice(start, start + 2), 16),
+	);
+	return `rgba(${channels.join(", ")}, ${String(opacity)})`;
+}
+
+/** Pixel sizes and resolutions of a deck's images, which only its tiled picture fills need, so only decks with one read them. */
+async function tiledMedia(zip: JSZip) {
+	const media = new Map<string, ImageMetrics>();
+	const parts = Object.keys(zip.files).filter((name) =>
+		/^ppt\/(?:slides|slideLayouts|slideMasters)\/[^/]+\.xml$/.test(name),
+	);
+	const tiled = await Promise.all(
+		parts.map(async (name) =>
+			((await zip.file(name)?.async("string")) ?? "").includes("<a:tile"),
+		),
+	);
+	if (!tiled.some(Boolean)) {
+		return media;
+	}
+
+	for (const name of Object.keys(zip.files)) {
+		const file = zip.file(name);
+		if (name.startsWith("ppt/media/") && file) {
+			const metrics = imageMetrics(await file.async("nodebuffer"));
+			if (metrics) {
+				media.set(name, metrics);
+			}
+		}
+	}
+
+	return media;
+}
+
+/** A part's shape elements by their cNvPr id, including shapes in groups. */
+function shapesById(root: Element) {
+	const shapes = new Map<string, Element>();
+	for (const properties of descendantsNamed(root, "p:cNvPr")) {
+		const shape = properties.parentElement?.parentElement;
+		const id = properties.getAttribute("id");
+		if (shape && id) {
+			shapes.set(id, shape);
+		}
+	}
+
+	return shapes;
+}
+
+/** Timing for layout and master shapes, which slide animations never target. */
+function staticTiming(): SlideTiming {
+	return {
+		clicks: 0,
+		dropped: [],
+		effects: new Map(),
+		paragraphs: new Map(),
+		shapes: new Map(),
+	};
 }
 
 /**
