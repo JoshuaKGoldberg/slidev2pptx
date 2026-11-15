@@ -71,11 +71,29 @@ export function convertText(
 	contentLeft: number,
 ) {
 	const paragraphs = childrenNamed(body, "a:p");
-	if (!paragraphs.some((paragraph) => textOf(paragraph).trim())) {
+	const renderedBullets = bulletsByParagraph(rendered, contentLeft);
+	// PowerPoint shows a marker for a paragraph of only spaces, but nothing for a body of them otherwise.
+	const shows = (paragraph: Element, index: number) => {
+		const text = textOf(paragraph);
+		if (text.trim()) {
+			return true;
+		}
+
+		const properties = childNamed(paragraph, "a:pPr");
+		const levels = [
+			...(properties ? [properties] : []),
+			...context.inherited(body, Number(properties?.getAttribute("lvl") ?? 0)),
+		];
+		return (
+			text !== "" &&
+			(bulletOf(bulletLevelOf(levels)) !== undefined ||
+				renderedBullets.get(index)?.character !== undefined)
+		);
+	};
+
+	if (!paragraphs.some(shows)) {
 		return undefined;
 	}
-
-	const renderedBullets = bulletsByParagraph(rendered, contentLeft);
 
 	const lines = linesByParagraph(rendered);
 	const blocks: string[] = [];
@@ -171,11 +189,13 @@ export function convertText(
 			...(shift ? { position: "relative", top: px(shift) } : {}),
 		});
 		const content = runs.html || "<br>";
-		const bullet =
-			bulletOf(bulletLevelOf(levels)) ??
-			(drawn?.character
-				? { character: drawn.character, kind: "character" as const, start: 1 }
-				: undefined);
+		// PowerPoint draws no marker for an empty paragraph, nor counts it.
+		const bullet = textOf(paragraph)
+			? (bulletOf(bulletLevelOf(levels)) ??
+				(drawn?.character
+					? { character: drawn.character, kind: "character" as const, start: 1 }
+					: undefined))
+			: undefined;
 
 		if (bullet) {
 			const ordered = bullet.kind === "number";
@@ -530,10 +550,22 @@ function preserveSpaces(text: string) {
 	);
 }
 
+/**
+ * A run's size as PowerPoint draws it: its own size, shrunk by its body's autofit.
+ * pptx-svg's drawn size can also carry a scaled group's stretch, which PowerPoint
+ * never applies to text, so it's only used for runs without a size of their own
+ * and for super- and subscripts, which pptx-svg already shrinks.
+ */
 function scaledSize(rendered: Element, fontScale: number) {
 	const size = Number(rendered.getAttribute("font-size") ?? 18);
 	const specified =
 		Number(rendered.getAttribute("data-ooxml-font-size") ?? 0) / 100;
+	const script =
+		Number(rendered.getAttribute("data-ooxml-baseline") ?? 0) !== 0;
+	if (specified > 0 && !script) {
+		return specified * (fontScale || 1);
+	}
+
 	return fontScale && Math.abs(size - specified) < 0.01
 		? size * fontScale
 		: size;
