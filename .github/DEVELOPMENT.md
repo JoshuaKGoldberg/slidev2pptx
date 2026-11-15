@@ -99,3 +99,8 @@ Add `--watch` to keep the type checker running in a watch mode that updates the 
 ```shell
 pnpm tsc --watch
 ```
+
+## Round-Trip QA
+
+[`qa/`](../qa/README.md) holds a harness that round-trips real PowerPoint decks through Slidev and slidev2pptx, then compares renderings.
+It needs macOS and Microsoft PowerPoint, so it isn't part of CI.
