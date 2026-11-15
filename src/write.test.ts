@@ -931,6 +931,18 @@ describe(writePptx, () => {
 		]);
 	});
 
+	it("sizes a numbered marker by its item's text when the item starts with an emoji lowered among text", async () => {
+		const xml = await slideXml([
+			listItem([listParagraph("✅ Done", { marker: "decimal" })]),
+		]);
+
+		// The emoji is written 1.5 times larger, which PowerPoint would otherwise size the number by.
+		expect(xml).toContain('sz="3600" baseline="-10000"');
+		expect(xml?.match(/<a:bu\w.*?(?=<\/a:pPr>)/g)).toEqual([
+			'<a:buSzPts val="2400"/><a:buFont typeface="Body"/><a:buAutoNum type="arabicPeriod" startAt="1"/>',
+		]);
+	});
+
 	it("leaves a marker in its first run's font and size when they match its item's", async () => {
 		const xml = await slideXml([
 			listItem([

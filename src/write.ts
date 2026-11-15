@@ -1192,13 +1192,22 @@ function colorToWrite({ markerColor, runs }: ListParagraph) {
 		: undefined;
 }
 
+/**
+ * The face to write a marker in, where PowerPoint's default, the first run's,
+ * isn't its own: where its ::marker differs, or where the paragraph starts
+ * with an emoji lowered among text, which is written larger.
+ */
 function faceToWrite(marker: Marker, { markerFace, runs }: ListParagraph) {
 	const first = runs.at(0);
-	return markerFace &&
-		first &&
-		((marker.kind !== "keyword" && markerFace.font !== first.font) ||
-			Math.abs(markerFace.size - first.size) > 0.01)
-		? markerFace
+	if (!first) {
+		return undefined;
+	}
+
+	const face = markerFace ?? { font: first.font, size: first.size };
+	return withLoweredEmoji(runs).at(0)?.lowered ||
+		(marker.kind !== "keyword" && face.font !== first.font) ||
+		Math.abs(face.size - first.size) > 0.01
+		? face
 		: undefined;
 }
 
