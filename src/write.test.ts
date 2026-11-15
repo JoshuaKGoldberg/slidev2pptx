@@ -365,6 +365,15 @@ describe(writePptx, () => {
 		).toContain('<a:lnSpc><a:spcPct val="152800"/></a:lnSpc>');
 	});
 
+	it("spaces lines in one font by their measured pitch when they grow past their CSS line height", async () => {
+		// A block's own font size can grow lines its text is all larger than: 40px over single spacing's 1.2 x 24px.
+		expect(
+			await slideXml([
+				textItem([[run("Grown")]], { baselines: [40, 80, 120] }),
+			]),
+		).toContain('<a:lnSpc><a:spcPct val="138900"/></a:lnSpc>');
+	});
+
 	it("spaces lines as a multiple when a paragraph's fonts differ only in a spacer", async () => {
 		expect(
 			await slideXml([

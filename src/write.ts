@@ -456,9 +456,9 @@ function createItemWriter({
 			lineHeight,
 			linksOnRuns,
 			lowersEmoji,
-			mixedPitch,
 			outline,
 			rtl,
+			textPitch,
 			wrap,
 		}: {
 			code: boolean;
@@ -468,11 +468,11 @@ function createItemWriter({
 			lowersEmoji: boolean;
 			/** Whether links stay on their text even without an underline, where extraction lays no hotspots over them: code and rotated text. */
 			linksOnRuns: boolean;
-			/** The measured line pitch of paragraphs that mix font sizes or fonts. */
-			mixedPitch?: number;
 			/** Whether to outline stroked text: the copy behind a fill CSS paints over its stroke, or the text itself. */
 			outline: boolean;
 			rtl: boolean;
+			/** A text paragraph's line pitch, measured from its baselines. */
+			textPitch?: number;
 			wrap: boolean;
 		},
 	) =>
@@ -494,10 +494,7 @@ function createItemWriter({
 			}
 
 			const baseSize = baseSizeOf(pieces);
-			const pitch =
-				(hasMixedFaces(pieces) ? mixedPitch : undefined) ??
-				paragraph.lineHeight ??
-				lineHeight;
+			const pitch = textPitch ?? paragraph.lineHeight ?? lineHeight;
 			const exact =
 				pitch > 0 &&
 				(hasMixedSizes(pieces) || pieces.some((piece) => piece.lowered));
@@ -577,18 +574,16 @@ function createItemWriter({
 		name: string,
 		visibleParagraphs: boolean[] | undefined,
 	) => {
-		// Lines mixing font sizes or fonts grow taller than their CSS line height, as each face's half-leading differs, so measure them.
-		const mixedPitch =
-			item.kind === "text" &&
-			item.baselines &&
-			item.paragraphs.some(({ runs }) => hasMixedFaces(runs))
+		// Lines grow taller than their CSS line height where their inline boxes reach further than the block's own, as with mixed fonts or sizes, so a paragraph's are measured.
+		const textPitch =
+			item.kind === "text" && item.baselines
 				? measuredPitch(item.baselines, item.style.lineHeight)
 				: undefined;
 		const style =
 			item.kind === "code"
 				? { ...item.style, lineHeight: codePitch(item) }
-				: mixedPitch && hasMixedFaces(item.paragraphs[0]?.runs ?? [])
-					? { ...item.style, lineHeight: mixedPitch }
+				: textPitch
+					? { ...item.style, lineHeight: textPitch }
 					: item.style;
 		const rotation = item.kind === "text" ? item.rotation : 0;
 		const markerGap = item.kind === "list" ? markerGapOf(item, fonts) : 0;
@@ -663,8 +658,8 @@ function createItemWriter({
 				item.kind === "code" ? style.lineHeight : item.style.lineHeight,
 			linksOnRuns: item.kind === "code" || rotation !== 0,
 			lowersEmoji: !emojiOnly,
-			mixedPitch,
 			rtl: style.rtl,
+			textPitch,
 			wrap: !style.nowrap,
 		};
 		const names = [name];
@@ -1359,14 +1354,6 @@ const baseSizeOf = (runs: Run[]) =>
 
 /** A paragraph's runs that size its lines: not super- and subscripts, or the spacers that pad text into place. */
 const facesOf = (runs: Run[]) => runs.filter((run) => !run.script && !run.pad);
-
-/**
- * Whether a paragraph mixes font sizes or fonts. CSS gives every line at
- * least the paragraph's line height, growing it where each face's
- * half-leading sits apart, so its lines' pitch is measured.
- */
-const hasMixedFaces = (runs: Run[]) =>
-	hasMixedSizes(runs) || new Set(facesOf(runs).map((run) => run.font)).size > 1;
 
 /**
  * Whether a paragraph mixes font sizes. PowerPoint scales a spacing multiple
