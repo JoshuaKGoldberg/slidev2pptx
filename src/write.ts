@@ -12,6 +12,7 @@ import type {
 	Fill,
 	ImageItem,
 	Item,
+	LineStyle,
 	ListItem,
 	ListParagraph,
 	MarkerFace,
@@ -112,6 +113,12 @@ const NUMBER_PERIOD_WIDTH = 0.6;
 
 /** PowerPoint shrinks superscripts and subscripts to about 2/3 of their size; 1.12x renders like a browser's 75% superscripts. */
 const SCRIPT_SCALE = 1.12;
+
+/** Device px per CSS px in Slidev's exports, as browsers draw borders a whole number of device px wide. */
+const EXPORT_PIXEL_RATIO = 2;
+
+/** How wide, in px, Blink's dashes start being twice their line's width long, with gaps as wide, rather than three times, with gaps twice. */
+const THICK_DASH_WIDTH = 3;
 
 /** PowerPoint's single line spacing, as a multiple of the font size. */
 const SINGLE_LINE_PITCH = 1.2;
@@ -355,6 +362,7 @@ const slidePatch = (
 	lists: [],
 	notes: withoutControlCharacters(notes),
 	pictureCorners: [],
+	strokes: [],
 	transition,
 });
 
@@ -385,9 +393,33 @@ function createItemWriter({
 	const lineFor = (stroke: Stroke | undefined) =>
 		stroke && {
 			color: stroke.color,
+			// A placeholder for the pattern patchStrokes writes.
+			dashType:
+				stroke.style === "dashed" || stroke.style === "dotted"
+					? ("dash" as const)
+					: undefined,
 			transparency: stroke.transparency,
 			width: Math.max(MIN_LINE_WIDTH, points(stroke.width)),
 		};
+	/** Has the patch draw an outline's CSS line style, along a line of the given length or around a shape. */
+	const patchStroke = (
+		patch: SlidePatch,
+		name: string,
+		stroke: Stroke | undefined,
+		length?: number,
+	) => {
+		if (stroke?.style) {
+			patch.strokes.push({
+				compound: stroke.style === "double" || undefined,
+				dash:
+					stroke.style === "double"
+						? undefined
+						: dashPattern(stroke.style, stroke.width, length),
+				name,
+			});
+		}
+	};
+
 	const shadowFor = (
 		shadow: Shadow | undefined,
 	): pptxgen.default.ShadowProps | undefined =>
@@ -690,6 +722,7 @@ function createItemWriter({
 						shadow: shadowFor(item.shadow),
 					},
 				);
+				patchStroke(patch, name, item.border);
 				return [name];
 			}
 
@@ -753,6 +786,20 @@ function createItemWriter({
 
 				return [name];
 			}
+			case "line":
+				slide.addShape(presentation.ShapeType.line, {
+					...position(item.box),
+					line: lineFor(item.border),
+					objectName: name,
+					rotate: item.rotation ? normalizeDegrees(item.rotation) : undefined,
+				});
+				patchStroke(
+					patch,
+					name,
+					item.border,
+					Math.max(item.box.width, item.box.height),
+				);
+				return [name];
 
 			case "polygon":
 				// https://github.com/gitbrent/PptxGenJS/issues/1328
@@ -1240,6 +1287,40 @@ const hasMixedFaces = (runs: Run[]) => {
 };
 
 /**
+ * The dash pattern Blink draws a dashed or dotted line in, in 100000ths of
+ * its width: dashes two widths long with one-width gaps from 3px wide, three
+ * with two below, and dots as long as they're wide, after snapping the width
+ * to device px. Given the line's length, Blink spaces whole dashes from end
+ * to end, gaps as close to its usual as fit.
+ */
+export function dashPattern(style: LineStyle, width: number, length?: number) {
+	const drawn =
+		Math.max(1, Math.floor(width * EXPORT_PIXEL_RATIO)) / EXPORT_PIXEL_RATIO;
+	const [dash, usual] =
+		style === "dotted"
+			? [drawn, drawn]
+			: drawn >= THICK_DASH_WIDTH
+				? [2 * drawn, drawn]
+				: [3 * drawn, 2 * drawn];
+	const gap = length === undefined ? usual : fittedGap(length, dash, usual);
+	return {
+		gap: Math.round((gap / width) * 100000),
+		length: Math.round((dash / width) * 100000),
+	};
+}
+
+/** The gap Blink spaces dashes by to fit whole ones from one end of a line to the other: the closer to its usual of the two counts nearest. */
+function fittedGap(length: number, dash: number, usual: number) {
+	const fewer = Math.floor((length + usual) / (dash + usual));
+	const gapFor = (count: number) =>
+		count > 1 ? (length - count * dash) / (count - 1) : 0;
+	const [wide, narrow] = [gapFor(fewer), gapFor(fewer + 1)];
+	return narrow <= 0 || Math.abs(wide - usual) < Math.abs(narrow - usual)
+		? wide
+		: narrow;
+}
+
+/**
  * The geometry to outline for a CSS border inside a box: PowerPoint centers
  * an outline on its shape's edge, where CSS draws a border inside its box.
  */
@@ -1428,6 +1509,7 @@ function uniqueName(item: Item, used: Set<string>) {
 					code: "Code",
 					ellipse: "Dot",
 					image: "Image",
+					line: "Line",
 					list: "List",
 					polygon: "Shape",
 					raster: "Rendered",

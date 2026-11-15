@@ -1101,6 +1101,46 @@ describe(extractState, () => {
 		]);
 	});
 
+	it.each([
+		[
+			"border-top: 6px dashed red",
+			{ box: { height: 0, width: 40, x: 0, y: 3 }, kind: "line" },
+		],
+		[
+			"border-left: 4px dotted red",
+			{ box: { height: 20, width: 0, x: 2, y: 0 }, kind: "line" },
+		],
+	])(
+		"draws a patterned side's border as a line down its middle (%s)",
+		async (border, line) => {
+			const { items } = await extract(
+				`<div style="box-sizing: border-box; width: 40px; height: 20px; ${border}"></div>`,
+			);
+
+			expect(items).toEqual([
+				expect.objectContaining({
+					...line,
+					border: expect.objectContaining({
+						style: border.split(" ")[2],
+					}),
+				}),
+			]);
+		},
+	);
+
+	it("outlines a box in its border's style when every side shares it", async () => {
+		const { items } = await extract(
+			`<div style="width: 40px; height: 20px; border: 2px double red"></div>`,
+		);
+
+		expect(items).toEqual([
+			expect.objectContaining({
+				border: { color: "FF0000", style: "double", transparency: 0, width: 2 },
+				kind: "box",
+			}),
+		]);
+	});
+
 	it("crops a flipped image in its own frame when a flipped ancestor's overflow clips it", async () => {
 		const { items } = await extract(
 			`<div style="position: relative; width: 40px; height: 20px; overflow: hidden; transform: scaleX(-1)"><img src="/photo.png" style="position: absolute; left: -20px; top: 0; width: 60px; height: 40px"></div>`,

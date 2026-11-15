@@ -39,6 +39,14 @@ export interface SlidePatch {
 		adjust: number;
 		name: string;
 	}[];
+	/** Outlines drawn in a pattern pptxgenjs can't write. */
+	strokes: {
+		/** A double line, as CSS draws a double border. */
+		compound?: boolean;
+		/** Each dash's and gap's length, in 100000ths of the line's width. */
+		dash?: { gap: number; length: number };
+		name: string;
+	}[];
 	title?: {
 		look: TitleLook;
 		name: string;
@@ -330,6 +338,21 @@ export function patchSlide(
 			'<a:rPr lang="en-US" kern="100"',
 		)
 		.replaceAll(' kern="0"', ' kern="100"');
+
+	for (const { compound, dash, name } of patch.strokes) {
+		patched = replaceShape(patched, name, (shape) => {
+			const dashed = dash
+				? patchOnce(
+						shape,
+						/<a:prstDash val="\w+"\/>/,
+						`<a:custDash><a:ds d="${String(dash.length)}" sp="${String(dash.gap)}"/></a:custDash>`,
+					)
+				: shape;
+			return compound
+				? patchOnce(dashed, /<a:ln w="\d+"/, (line) => `${line} cmpd="dbl"`)
+				: dashed;
+		});
+	}
 
 	for (const { adjust, name } of patch.pictureCorners) {
 		patched = replaceShape(patched, name, (picture) =>

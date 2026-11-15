@@ -19,6 +19,7 @@ import type {
 
 import {
 	codePitch,
+	dashPattern,
 	horizontalPlacement,
 	markerFor,
 	numberLength,
@@ -530,6 +531,44 @@ describe(writePptx, () => {
 				box: [x, y, width, height].map((emu) => emu / 12700),
 				join: /<a:ln w="50800">.*<a:miter lim="800000"\/><\/a:ln>/.test(xml),
 			}).toEqual({ box, join: true });
+		},
+	);
+
+	it("dashes a line along its length when its border is dashed", async () => {
+		expect(
+			await slideXml([
+				{
+					border: {
+						color: "C8D7FA",
+						style: "dashed",
+						transparency: 0,
+						width: 6,
+					},
+					box: { height: 0, width: 244.1, x: 10, y: 10 },
+					decorative: false,
+					key: "divider",
+					kind: "line",
+					rotation: 90,
+				},
+			]),
+		).toMatch(
+			/<a:xfrm rot="5400000">.*<a:prstGeom prst="line">.*<a:ln w="76200"><a:solidFill><a:srgbClr val="C8D7FA"\/><\/a:solidFill><a:custDash><a:ds d="200000" sp="97564"\/><\/a:custDash><a:miter lim="800000"\/><\/a:ln>/s,
+		);
+	});
+
+	it.each([
+		["dotted", '<a:custDash><a:ds d="100000" sp="100000"/></a:custDash>'],
+		["double", '<a:ln w="50800" cmpd="dbl">'],
+	] as const)(
+		"outlines a box in its %s border's pattern",
+		async (style, outline) => {
+			expect(
+				await slideXml([
+					boxItem({
+						border: { color: "FF6347", style, transparency: 0, width: 4 },
+					}),
+				]),
+			).toContain(outline);
 		},
 	);
 
@@ -1769,6 +1808,23 @@ describe(writePptx, () => {
 			/presetClass="exit".*<p:pRg st="1" end="1"\/>.*<p:bldP spid="2" grpId="0" build="p"\/>/s,
 		);
 	});
+});
+
+describe(dashPattern, () => {
+	it.each([
+		// Two widths long, with one-width gaps.
+		["dashed", 6, undefined, { gap: 100000, length: 200000 }],
+		// Fourteen dashes fit 244.1px with gaps of 5.85px, closer to 6px than thirteen's 7.34px.
+		["dashed", 6, 244.1, { gap: 97564, length: 200000 }],
+		// Drawn 2px wide, three widths long with two-width gaps: 96 dashes fit 960px with gaps of 4.04px.
+		["dashed", 2.2, 960, { gap: 183732, length: 272727 }],
+		["dotted", 4, undefined, { gap: 100000, length: 100000 }],
+	] as const)(
+		"draws a %s line %spx wide and %spx long as Blink does",
+		(style, width, length, pattern) => {
+			expect(dashPattern(style, width, length)).toEqual(pattern);
+		},
+	);
 });
 
 describe(horizontalPlacement, () => {

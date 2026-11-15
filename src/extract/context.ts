@@ -1,7 +1,7 @@
 import type { Assets } from "../assets.ts";
 import type { FontBook } from "../fonts.ts";
 import type { LaidOutRuns, Layout } from "../layout.ts";
-import type { Canvas, ExtractedItem, Fill, Shadow } from "../model.ts";
+import type { Box, Canvas, ExtractedItem, Fill, Shadow } from "../model.ts";
 import type { Clip, Frame, Insets, Side } from "./geometry.ts";
 
 import {
@@ -87,12 +87,22 @@ const isDecoration = (item: ItemInput) =>
 	!("paragraphs" in item) && !("alt" in item && item.alt.trim());
 
 /** An item cut to a clip: shapes and pictures to the part inside it, text to the height it shows; undefined when none of it shows. */
+/** What a line covers: its stroke's width across it, as it has none of its own. */
+const strokedBounds = ({
+	border,
+	box,
+}: Extract<ItemInput, { kind: "line" }>): Box => ({
+	height: box.height || border.width,
+	width: box.width || border.width,
+	x: box.width ? box.x : box.x - border.width / 2,
+	y: box.height ? box.y : box.y - border.width / 2,
+});
+
 function clipItem(item: ItemInput, clip: Clip): ItemInput | undefined {
 	const rotation = "rotation" in item ? item.rotation : 0;
-	const box = clipBox(item.box, clip);
-	const shown = rotation
-		? clipBox(rotatedBounds(item.box, rotation), clip)
-		: box;
+	const bounds = item.kind === "line" ? strokedBounds(item) : item.box;
+	const box = clipBox(bounds, clip);
+	const shown = rotation ? clipBox(rotatedBounds(bounds, rotation), clip) : box;
 	if (shown.width <= 0 || shown.height <= 0) {
 		return undefined;
 	}

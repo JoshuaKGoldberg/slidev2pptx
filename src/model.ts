@@ -78,6 +78,7 @@ export type Item =
 	| CodeItem
 	| EllipseItem
 	| ImageItem
+	| LineItem
 	| ListItem
 	| PolygonItem
 	| RasterItem
@@ -186,11 +187,16 @@ export interface Slide {
 
 export interface Stroke {
 	color: string;
+	/** How CSS draws the line, when it isn't solid. */
+	style?: LineStyle;
 	/** 0-100 */
 	transparency: number;
 	/** px */
 	width: number;
 }
+
+/** A border's CSS line style other than solid, which PowerPoint draws as a dash pattern or a compound line. */
+export type LineStyle = "dashed" | "dotted" | "double";
 
 export interface TextItem extends ItemBase {
 	/** Line baselines in slide px; omitted for rotated text. */
@@ -274,6 +280,15 @@ interface ItemBase {
 	key: string;
 	/** What the item is part of, for its name in PowerPoint's Selection Pane when its own content doesn't say. */
 	label?: string;
+}
+
+/** A straight line, as one side of a box's border drawn in a pattern. */
+interface LineItem extends ItemBase {
+	border: Stroke;
+	/** The line's bounds: no taller than nothing when it runs across, no wider when it runs down. */
+	box: Box;
+	kind: "line";
+	rotation: number;
 }
 
 interface PolygonItem extends ItemBase {

@@ -59,6 +59,7 @@ const patch = (
 			lists: [],
 			notes: "",
 			pictureCorners: [],
+			strokes: [],
 			...changes,
 		},
 		{ gradients, theme },

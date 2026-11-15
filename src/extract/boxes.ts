@@ -1,5 +1,5 @@
 import type { ComputedStyle } from "../cascade.ts";
-import type { Box, Canvas, Fill, Shadow } from "../model.ts";
+import type { Box, Canvas, Fill, LineStyle, Shadow } from "../model.ts";
 import type { ExtractContext, ItemInput } from "./context.ts";
 import type { Geometry, Side } from "./geometry.ts";
 
@@ -28,6 +28,12 @@ import {
 } from "./geometry.ts";
 
 const TILE_COVERAGE_TOLERANCE = 0.5;
+
+/** CSS border styles PowerPoint draws in a pattern; it draws the rest solid. */
+const LINE_STYLES = new Set<string>(["dashed", "dotted", "double"]);
+
+const lineStyleOf = (style: string) =>
+	LINE_STYLES.has(style) ? (style as LineStyle) : undefined;
 
 type BoxStyle = NonNullable<ReturnType<typeof boxStyle>>;
 
@@ -126,23 +132,49 @@ export function boxItems(
 
 	for (const edge of style.edges ?? []) {
 		if (sides.includes(edge.side)) {
-			items.push({
-				...edgeBox(
-					box,
-					// A flip shows the left border on the right, and the right on the left.
-					{
-						side: flip ? MIRRORED[edge.side] : edge.side,
-						width: edge.width * scale,
-					},
-					radius,
-					rotation,
-				),
-				fill: edge.fill,
+			const width = edge.width * scale;
+			const strip = edgeBox(
+				box,
+				// A flip shows the left border on the right, and the right on the left.
+				{ side: flip ? MIRRORED[edge.side] : edge.side, width },
+				radius,
+				rotation,
+			);
+			const common = {
 				key: `${key}#border-${edge.side}`,
-				kind: "box",
 				label: `${edge.side} border of ${label}`,
-				radius: 0,
-			});
+			};
+			const across = edge.side === "top" || edge.side === "bottom";
+			// A patterned border is a line down the middle of its side, which PowerPoint can dash.
+			items.push(
+				edge.style
+					? {
+							...common,
+							border: { ...edge.fill, style: edge.style, width },
+							box: across
+								? {
+										height: 0,
+										width: strip.box.width,
+										x: strip.box.x,
+										y: strip.box.y + strip.box.height / 2,
+									}
+								: {
+										height: strip.box.height,
+										width: 0,
+										x: strip.box.x + strip.box.width / 2,
+										y: strip.box.y,
+									},
+							kind: "line",
+							rotation: strip.rotation,
+						}
+					: {
+							...common,
+							...strip,
+							fill: edge.fill,
+							kind: "box",
+							radius: 0,
+						},
+			);
 		}
 	}
 
@@ -191,6 +223,7 @@ export function boxStyle(
 							transparency: transparencyOf(borderColor.alpha, opacity),
 						},
 						side,
+						style: lineStyleOf(style[`border-${side}-style`]),
 						width,
 					},
 				]
@@ -205,11 +238,14 @@ export function boxStyle(
 		sides.every(
 			(side) =>
 				side.width === sides[0].width &&
+				side.style === sides[0].style &&
 				side.fill.color === sides[0].fill.color &&
 				side.fill.transparency === sides[0].fill.transparency,
 		);
 	return {
-		border: uniform ? { ...sides[0].fill, width: sides[0].width } : undefined,
+		border: uniform
+			? { ...sides[0].fill, style: sides[0].style, width: sides[0].width }
+			: undefined,
 		edges: uniform || !sides.length ? undefined : sides,
 		fill,
 		radius: context.radiusOf(element),
