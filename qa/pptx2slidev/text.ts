@@ -2,7 +2,7 @@ import type { createFontResolver } from "./fonts.ts";
 import type { Theme } from "./theme.ts";
 import type { Visibility } from "./timing.ts";
 
-import { inlineExtentOf } from "../../src/fonts.ts";
+import { inlineExtentOf, isEmojiText } from "../../src/fonts.ts";
 import { firstBaseline, SPACED_BASELINE } from "../../src/write.ts";
 import { escapeAttribute, escapeText, px, styleOf } from "./html.ts";
 import { bulletLevelOf, propertyChildOf, propertyOf } from "./inheritance.ts";
@@ -689,7 +689,7 @@ function renderRun(
 		"text-transform": cap === "all" ? "uppercase" : undefined,
 		"vertical-align": baseline > 0 ? "super" : baseline < 0 ? "sub" : undefined,
 	});
-	const span = `<span style="${css}">${escapeText(text)}</span>`;
+	const span = `<span style="${css}">${withRaisedEmoji(text)}</span>`;
 
 	return href ? `<a href="${escapeAttribute(href)}">${span}</a>` : span;
 }
@@ -957,4 +957,33 @@ function withBottomMargin(html: string, margin: number) {
 		.slice(style + 7, end)
 		.replace(/;?margin-bottom:[^;]*/, "");
 	return `${html.slice(0, style + 7)}${declarations};margin-bottom:${px(margin)}${html.slice(end)}`;
+}
+
+/** How much higher PowerPoint (for Mac) draws emoji than browsers on the same baseline, in em: slidev2pptx's measure. */
+const EMOJI_RISE = 0.12;
+
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** Escaped text with its emoji raised where PowerPoint draws them, apart from their line, which keeps its place. */
+function withRaisedEmoji(text: string) {
+	let html = "";
+	let emoji = "";
+	const flush = () => {
+		if (emoji) {
+			html += `<span style="position:relative;top:-${String(EMOJI_RISE)}em">${escapeText(emoji)}</span>`;
+			emoji = "";
+		}
+	};
+
+	for (const { segment } of graphemes.segment(text)) {
+		if (isEmojiText(segment) && segment.trim()) {
+			emoji += segment;
+		} else {
+			flush();
+			html += escapeText(segment);
+		}
+	}
+
+	flush();
+	return html;
 }
