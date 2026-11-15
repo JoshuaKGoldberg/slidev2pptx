@@ -149,24 +149,18 @@ const WEIGHT_SUFFIX =
 const isGeneric = (family: string): family is Generic =>
 	Object.hasOwn(GENERICS, family);
 
-/** Characters that join emoji into one: zero-width joiners, variation selectors, and keycaps. */
-const EMOJI_JOINERS = new Set(["\u200D", "\uFE0F", "\u20E3"]);
+/**
+ * Text that's all emoji drawn as emoji (and white space): pictographs shown
+ * as emoji by default or asked to be with U+FE0F, joined by zero-width
+ * joiners, with skin tones, flags (and their tags), and keycaps. Other
+ * pictographs, like ⁉, draw as text in a font that has them.
+ */
+const EMOJI_TEXT =
+	/^(?:[\s\p{Emoji_Presentation}\p{Join_Control}\p{Variation_Selector}\u{E0020}-\u{E007F}]|\p{Extended_Pictographic}\uFE0F|[#*0-9]\uFE0F?\u20E3)+$/u;
 
 /** Whether text is all emoji (and white space). */
-export function isEmojiText(text: string) {
-	const characters = Array.from(text);
-	return (
-		characters.some((character) =>
-			/\p{Extended_Pictographic}/u.test(character),
-		) &&
-		characters.every(
-			(character) =>
-				/[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\s]/u.test(
-					character,
-				) || EMOJI_JOINERS.has(character),
-		)
-	);
-}
+export const isEmojiText = (text: string) =>
+	EMOJI_TEXT.test(text) && /\S/.test(text);
 
 /** Families Blink on macOS gives 15% more ascent, to match the line heights of their Windows counterparts. */
 const TALLER_ON_MACOS = /^(?:courier|helvetica|times)$/i;

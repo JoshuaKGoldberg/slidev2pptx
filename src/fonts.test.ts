@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Assets } from "./assets.ts";
 
-import { contentAreaOf, createFontBook } from "./fonts.ts";
+import { contentAreaOf, createFontBook, isEmojiText } from "./fonts.ts";
 
 const leagueSpartan = fs.readFileSync(
 	new URL("fixture/fonts/league-spartan.woff2", import.meta.url),
@@ -359,4 +359,26 @@ describe(contentAreaOf, () => {
 			expect(shift).toBeCloseTo(area.shift, 2);
 		},
 	);
+});
+
+describe(isEmojiText, () => {
+	it.each([
+		["🤩", true],
+		["❌ 💖", true],
+		["👩‍💻", true],
+		["👍🏽", true],
+		["❤️", true],
+		["2️⃣", true],
+		["🇺🇸", true],
+		["🏴󠁧󠁢󠁳󠁣󠁴󠁿", true],
+		// Pictographs drawn as text by default, unless asked to be emoji.
+		["⁉", false],
+		["✔", false],
+		["❤︎", false],
+		["#", false],
+		["Text ❌", false],
+		[" ", false],
+	])("says whether %j is all emoji: %s", (text, emoji) => {
+		expect(isEmojiText(text)).toBe(emoji);
+	});
 });
