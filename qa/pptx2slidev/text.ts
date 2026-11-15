@@ -12,6 +12,16 @@ import {
 	descendantsNamed,
 } from "./xml.ts";
 
+export interface RunStyle {
+	bold: boolean;
+	color?: string;
+	font?: string;
+	italic: boolean;
+	size: number;
+	strike: boolean;
+	underline: boolean;
+}
+
 export interface TextContext {
 	fonts: ReturnType<typeof createFontResolver>;
 	/** Records something the conversion couldn't keep. */
@@ -36,16 +46,6 @@ interface Piece {
 	rendered: Element | undefined;
 	style: RunStyle;
 	text: string;
-}
-
-interface RunStyle {
-	bold: boolean;
-	color?: string;
-	font?: string;
-	italic: boolean;
-	size: number;
-	strike: boolean;
-	underline: boolean;
 }
 
 const ALIGNMENTS: Partial<Record<string, string>> = {
@@ -79,6 +79,11 @@ export function convertText(
 	contentLeft: number,
 	/** How much autofit takes off percentage line spacing, as a fraction of single spacing. */
 	lineSpacingReduction = 0,
+	/** Resolves a run's style from its properties (or a paragraph's end properties), for text pptx-svg doesn't style, like tables'. */
+	resolveRun?: (
+		properties: Element | undefined,
+		paragraph: Element,
+	) => RunStyle,
 ) {
 	const paragraphs = childrenNamed(body, "a:p");
 	const renderedBullets = bulletsByParagraph(rendered, contentLeft);
@@ -136,8 +141,19 @@ export function convertText(
 					firstRendered?.parentElement?.getAttribute("data-ooxml-para-align") ??
 					"l"
 			];
-		const runs = convertRuns(context, paragraph, paragraphLines, fontScale);
-		const size = runs.size ?? sizeOfEmpty(paragraph, fontScale) ?? lastSize;
+		const runs = convertRuns(
+			context,
+			paragraph,
+			paragraphLines,
+			fontScale,
+			resolveRun,
+		);
+		const size =
+			runs.size ??
+			(resolveRun
+				? resolveRun(childNamed(paragraph, "a:endParaRPr"), paragraph).size
+				: sizeOfEmpty(paragraph, fontScale)) ??
+			lastSize;
 		lastSize = size;
 
 		const previous = lines.get(index - 1)?.at(-1);
@@ -177,9 +193,11 @@ export function convertText(
 					? 0
 					: drawn.bulletX - drawn.textX
 				: Number(declaredIndent) / EMU;
-		// A paragraph in its first run's font keeps the browser's line boxes from growing around a different strut.
-		const paragraphFont = runs.first?.font
-			? context.fonts.resolve(runs.first.font)
+		// A paragraph in the font of the run that sizes it keeps the browser's line boxes from growing around a different strut.
+		// (Its weight stays its first run's, which runs without their own inherit.)
+		const main = runs.main ?? runs.first;
+		const paragraphFont = main?.font
+			? context.fonts.resolve(main.font)
 			: undefined;
 		const shift = paragraphFont
 			? baselineShift(context, {
@@ -354,6 +372,10 @@ function convertRuns(
 	paragraph: Element,
 	lines: Line[],
 	fontScale: number,
+	resolveRun?: (
+		properties: Element | undefined,
+		paragraph: Element,
+	) => RunStyle,
 ) {
 	const rendered = new Map<number, Element>();
 	for (const line of lines) {
@@ -369,6 +391,8 @@ function convertRuns(
 	let runIndex = 0;
 	let size: number | undefined;
 	let first: RunStyle | undefined;
+	let main: RunStyle | undefined;
+	let sized = false;
 	let previous: RunStyle | undefined;
 	for (const child of paragraph.children) {
 		if (child.tagName === "a:br") {
@@ -390,20 +414,30 @@ function convertRuns(
 		runIndex += 1;
 		const style = renderedRun
 			? styleOfRun(renderedRun)
-			: (previous ?? fallbackStyle(child, fontScale));
+			: resolveRun
+				? resolveRun(childNamed(child, "a:rPr"), paragraph)
+				: (previous ?? fallbackStyle(child, fontScale));
 		if (renderedRun) {
 			style.size = scaledSize(renderedRun, fontScale);
 		}
 
 		previous = style;
-		size ??= style.size;
 		first ??= style;
+		// PowerPoint sizes a line by its largest text, so spaces leading a paragraph don't size it alone.
+		if (!sized && (size === undefined || style.size > size)) {
+			size = style.size;
+			main = style;
+		}
+
+		sized ||= !!text.trim();
 		if (text) {
 			pieces.push({ child, rendered: renderedRun, style, text });
 		}
 	}
 
-	// Vue drops whitespace-only text that's an element's only child, so spaces join a neighboring run.
+	// Vue drops whitespace-only text that's an element's only child, so spaces join a neighboring run,
+	// preferring one in their own font and size, as that's what PowerPoint measures them in.
+	// Without one, two or more spaces can stand alone, as they become no-break spaces.
 	for (const [index, piece] of pieces.entries()) {
 		if (!piece || piece.text.trim()) {
 			continue;
@@ -411,10 +445,21 @@ function convertRuns(
 
 		const before = pieces[index - 1];
 		const after = pieces[index + 1];
-		if (before) {
+		const sameFont = (other: Piece | undefined) =>
+			!!other &&
+			other.style.font === piece.style.font &&
+			other.style.size === piece.style.size;
+		const target = sameFont(before)
+			? before
+			: sameFont(after)
+				? after
+				: piece.text.includes("  ")
+					? undefined
+					: (before ?? after);
+		if (target && target === before) {
 			before.text += piece.text;
 			pieces[index] = { ...piece, text: "" };
-		} else if (after) {
+		} else if (target && target === after) {
 			after.text = piece.text + after.text;
 			pieces[index] = { ...piece, text: "" };
 		}
@@ -440,7 +485,7 @@ function convertRuns(
 				: "<br>",
 		)
 		.join("");
-	return { first, html, size };
+	return { first, html, main, size };
 }
 
 /**

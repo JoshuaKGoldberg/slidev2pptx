@@ -26,6 +26,7 @@ import {
 import { type ImageMetrics, imageMetrics } from "./media.ts";
 import { withoutEmptyTables } from "./sanitize.ts";
 import { convertShape } from "./shapes.ts";
+import { createTheme } from "./theme.ts";
 import { readTiming } from "./timing.ts";
 import { convertTransition } from "./transitions.ts";
 import {
@@ -86,6 +87,11 @@ export async function convertDeck(input: string, output: string) {
 		(await zip.file("ppt/presentation.xml")?.async("string")) ?? "",
 	);
 	const slidePaths = await slideOrder(zip, presentation);
+	const tableStyles = parseXml(
+		(await zip.file("ppt/tableStyles.xml")?.async("string")) ??
+			"<a:tblStyleLst/>",
+	).documentElement;
+	const themes = new Map<string, Element | undefined>();
 	const media = await tiledMedia(zip);
 	const copied = new Map<string, string>();
 	const writes: Promise<void>[] = [];
@@ -104,6 +110,24 @@ export async function convertDeck(input: string, output: string) {
 			(part) => relationships(zip, part),
 		);
 		const timing = readTiming(slide);
+		const themePath = sources.masterPath
+			? [...(await relationships(zip, sources.masterPath)).values()].find(
+					(target) => target.includes("theme/"),
+				)
+			: undefined;
+		if (themePath && !themes.has(themePath)) {
+			themes.set(
+				themePath,
+				parseXml((await zip.file(themePath)?.async("string")) ?? "<empty/>")
+					.documentElement,
+			);
+		}
+
+		const theme = createTheme(
+			themePath ? themes.get(themePath) : undefined,
+			[slide, sources.layout, sources.master],
+			tableStyles,
+		);
 		losses.push(
 			...timing.dropped.map((effect) => `Dropped animation: ${effect}`),
 		);
@@ -175,6 +199,7 @@ export async function convertDeck(input: string, output: string) {
 			lose: (loss: string) => losses.push(loss),
 			raw,
 			resolveLink: (id: string) => partRels.get(id),
+			theme,
 			timing: partTiming,
 			withVisibility,
 		});
@@ -805,20 +830,39 @@ async function styleSheet(
 	white-space: pre-wrap;
 }
 
+/* PowerPoint draws a table's borders centered on its grid, as collapsed borders are. */
+.pptx-table {
+	border-collapse: collapse;
+	border-spacing: 0;
+	table-layout: fixed;
+}
+
+.pptx-table td {
+	overflow-wrap: break-word;
+	white-space: pre-wrap;
+}
+
 .pptx-text p,
 .pptx-text ul,
 .pptx-text ol,
-.pptx-text li {
+.pptx-text li,
+.pptx-table p,
+.pptx-table ul,
+.pptx-table ol,
+.pptx-table li {
 	margin: 0;
 	padding: 0;
 }
 
 .pptx-text ul,
-.pptx-text ol {
+.pptx-text ol,
+.pptx-table ul,
+.pptx-table ol {
 	list-style-position: outside;
 }
 
-.pptx-text a {
+.pptx-text a,
+.pptx-table a {
 	color: inherit;
 }
 `;
