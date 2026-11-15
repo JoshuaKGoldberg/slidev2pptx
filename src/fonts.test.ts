@@ -226,6 +226,8 @@ describe(createFontBook, () => {
 			ascent: 0.7,
 			baseline: 0.753,
 			descent: 0.22,
+			// League Spartan says to use its typographic metrics.
+			singleDescent: expect.closeTo(0.239, 3),
 		});
 	});
 
@@ -250,6 +252,7 @@ describe(createFontBook, () => {
 			ascent: 0.928,
 			baseline: 0.745,
 			descent: 0.236,
+			singleDescent: expect.closeTo(0.2026, 4),
 		});
 	});
 

@@ -116,6 +116,9 @@ const SCRIPT_SCALE = 1.12;
 /** PowerPoint's single line spacing, as a multiple of the font size. */
 const SINGLE_LINE_PITCH = 1.2;
 
+/** How far down its pitch PowerPoint (for Mac) puts a loosely spaced line's baseline, whatever the font (measured 0.740-0.753 over 7 fonts at 110-200%). */
+const SPACED_BASELINE = 0.746;
+
 /** pptxgenjs swaps a zero shadow blur or offset, or a zero bullet indent, for its defaults, so zero is written as this. */
 const NEAR_ZERO = 0.01;
 
@@ -537,6 +540,7 @@ function createItemWriter({
 			item,
 			style,
 			rotation,
+			hasMixedSizes(paragraphs[0]?.runs ?? []),
 			firstRun,
 			fonts,
 		);
@@ -923,11 +927,30 @@ function emojiDrop({ ascent, descent }: { ascent: number; descent: number }) {
 	);
 }
 
+/**
+ * How far below a line's top, in px, PowerPoint draws its first baseline at
+ * a line spacing multiple: single spacing keeps the font's descent share of
+ * the line below the baseline, tighter spacing takes room from above it, and
+ * looser spacing adds room above once SPACED_BASELINE of the pitch is lower.
+ */
+function firstBaseline(
+	{ singleDescent }: { singleDescent: number },
+	size: number,
+	pitch: number,
+) {
+	const single = SINGLE_LINE_PITCH * size;
+	return Math.max(
+		SPACED_BASELINE * pitch,
+		Math.min(pitch, single) - singleDescent * single,
+	);
+}
+
 /** Where the box's top goes so PowerPoint's first baseline lands on the browser's, and how tall it is. */
 function verticalPlacement(
 	item: CodeItem | ListItem | TextItem,
 	style: TextStyle,
 	rotation: number,
+	exactSpacing: boolean,
 	{ font, size }: Run,
 	fonts: FontBook,
 ) {
@@ -937,20 +960,26 @@ function verticalPlacement(
 			? item.paragraphs.find((paragraph) => paragraph.baselines.length)
 					?.baselines
 			: item.baselines;
-	const { ascent, baseline, descent } = fonts.metrics(font);
+	const metrics = fonts.metrics(font);
+	const { ascent, descent } = metrics;
+	// Exact spacing, for lines mixing sizes, keeps the fraction of the pitch measured for it.
+	const firstLine = exactSpacing
+		? metrics.baseline * style.lineHeight
+		: firstBaseline(metrics, size, style.lineHeight);
 	if (rotation && style.lineHeight) {
 		const top =
 			box.y +
 			(style.lineHeight - (ascent + descent) * size) / 2 +
 			ascent * size -
-			baseline * style.lineHeight;
+			firstLine;
 		return { height: box.height + (box.y - top), top };
 	}
 
 	if (baselines?.length && style.lineHeight) {
 		const top =
 			baselines[0] -
-			(baseline + (item.kind === "list" ? LIST_LIFT : 0)) * style.lineHeight;
+			firstLine -
+			(item.kind === "list" ? LIST_LIFT * style.lineHeight : 0);
 		return {
 			height: Math.max(
 				box.height + (box.y - top),

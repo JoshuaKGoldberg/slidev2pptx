@@ -31,7 +31,12 @@ const fonts: FontBook = {
 	advance: (font, text) =>
 		font === "Measured" ? Array.from(text).length * 0.5 : undefined,
 	load: () => Promise.resolve([]),
-	metrics: () => ({ ascent: 0.8, baseline: 0.75, descent: 0.2 }),
+	metrics: () => ({
+		ascent: 0.8,
+		baseline: 0.75,
+		descent: 0.2,
+		singleDescent: 0.2,
+	}),
 	missingFamilies: () => Promise.resolve([]),
 	resolve: () => ({ bold: false, font: "Body" }),
 	spacer: () => ({ advance: 0.6, font: "Mono" }),
@@ -351,6 +356,29 @@ describe(writePptx, () => {
 
 			expect((emoji.x - text.x) / 12700).toBeCloseTo(drop.x, 1);
 			expect((emoji.y - text.y) / 12700).toBeCloseTo(drop.y, 1);
+		},
+	);
+
+	it.each([
+		// Single spacing keeps the font's 0.2 descent share of 28.8px below the baseline.
+		[28.8, 40 - (28.8 - 0.2 * 28.8)],
+		// Tighter spacing takes room from above the baseline.
+		[25.92, 40 - (25.92 - 0.2 * 28.8)],
+		// Looser spacing puts the baseline 0.746 down the pitch.
+		[43.2, 40 - 0.746 * 43.2],
+	])(
+		"puts the first baseline where PowerPoint does at a %s px pitch",
+		async (lineHeight, top) => {
+			const xml = await slideXml([
+				textItem([[run("Text")]], {
+					style: { ...style, lineHeight, nowrap: false, wrapWidth: 400 },
+				}),
+			]);
+			const y = Number(
+				[...(xml ?? "").matchAll(/<a:off x="\d+" y="(\d+)"/g)].at(-1)?.[1],
+			);
+
+			expect(y / 12700).toBeCloseTo(top, 1);
 		},
 	);
 
@@ -885,7 +913,7 @@ describe(writePptx, () => {
 				textItem([[run("Turned")]], { baselines: undefined, rotation: 90 }),
 			]),
 		).toContain(
-			'<a:xfrm rot="5400000"><a:off x="508000" y="231140"/><a:ext cx="5080000" cy="530860"/>',
+			'<a:xfrm rot="5400000"><a:off x="508000" y="232969"/><a:ext cx="5080000" cy="529031"/>',
 		);
 	});
 
@@ -1107,7 +1135,7 @@ describe(writePptx, () => {
 			style: firstLevel(master, "p:titleStyle"),
 		}).toEqual({
 			placeholder:
-				'name="Title Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="508000" y="165100"/><a:ext cx="5130800" cy="596900"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>',
+				'name="Title Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="508000" y="166929"/><a:ext cx="5130800" cy="595071"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>',
 			style: {
 				align: "l",
 				properties:
@@ -1162,7 +1190,7 @@ describe(writePptx, () => {
 		expect(
 			await slideXml([textItem([[run("Title")]], { heading: true })]),
 		).toContain(
-			'<p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="508000" y="165100"/><a:ext cx="5130800" cy="596900"/></a:xfrm><a:prstGeom prst="rect"><a:avLst></a:avLst></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="t"></a:bodyPr><a:lstStyle/><a:p><a:pPr algn="l" indent="0" marL="0"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buNone/></a:pPr><a:r><a:rPr lang="en-US" kern="100" dirty="0"/><a:t>Title</a:t></a:r><a:endParaRPr lang="en-US" kern="100" dirty="0"/></a:p>',
+			'<p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="508000" y="166929"/><a:ext cx="5130800" cy="595071"/></a:xfrm><a:prstGeom prst="rect"><a:avLst></a:avLst></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="t"></a:bodyPr><a:lstStyle/><a:p><a:pPr algn="l" indent="0" marL="0"><a:lnSpc><a:spcPct val="125000"/></a:lnSpc><a:buNone/></a:pPr><a:r><a:rPr lang="en-US" kern="100" dirty="0"/><a:t>Title</a:t></a:r><a:endParaRPr lang="en-US" kern="100" dirty="0"/></a:p>',
 		);
 	});
 

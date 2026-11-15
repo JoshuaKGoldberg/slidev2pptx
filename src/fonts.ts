@@ -43,10 +43,12 @@ interface Face {
 interface FontMetrics {
 	/** Ascent above the baseline, in em, as browsers lay out lines. */
 	ascent: number;
-	/** Where PowerPoint puts a line's baseline, as a fraction of its line pitch. */
+	/** Where PowerPoint puts a line's baseline with exact line spacing, as a fraction of its line pitch. */
 	baseline: number;
 	/** Descent below the baseline, in em. */
 	descent: number;
+	/** How much of a single-spaced line PowerPoint keeps below its baseline: the font's Windows descent share, or its typographic one when it says to use those. */
+	singleDescent: number;
 }
 
 type Generic = NonNullable<Extract<TakumiFont, { data: unknown }>["generic"]>;
@@ -113,10 +115,18 @@ const MEASURED_BASELINES: [RegExp, number][] = [
 const BASELINE_FIT_INTERCEPT = 0.532;
 const BASELINE_FIT_SLOPE = 0.2855;
 
+/** Fonts whose single-spaced lines PowerPoint lays out by other metrics than their Windows ones (measured). */
+const MEASURED_SINGLE_DESCENTS: [RegExp, number][] = [
+	// Apple's Helvetica, by its hhea metrics.
+	[/^helvetica\b/i, 0.235],
+];
+
 const DEFAULT_METRICS: FontMetrics = {
 	ascent: 0.928,
 	baseline: MENLO_BASELINE,
 	descent: 0.236,
+	// Menlo's Windows metrics.
+	singleDescent: 483 / 2384,
 };
 
 const LATIN_SMALL_A = 0x61;
@@ -527,12 +537,20 @@ function metricsOf(font: fontkit.Font, name: string) {
 			? windowsMetrics.typoAscender /
 				(windowsMetrics.typoAscender - windowsMetrics.typoDescender)
 			: ascent / (ascent + descent);
+	const [up, down] = typographic
+		? [typographic.typoAscender, -typographic.typoDescender]
+		: windowsMetrics && windowsMetrics.winAscent + windowsMetrics.winDescent > 0
+			? [windowsMetrics.winAscent, windowsMetrics.winDescent]
+			: [font.ascent, -font.descent];
 	return {
 		ascent,
 		baseline:
 			measured?.[1] ??
 			BASELINE_FIT_INTERCEPT + BASELINE_FIT_SLOPE * typographicAscentRatio,
 		descent,
+		singleDescent:
+			MEASURED_SINGLE_DESCENTS.find(([pattern]) => pattern.test(name))?.[1] ??
+			down / (up + down),
 	} satisfies FontMetrics;
 }
 
