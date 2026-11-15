@@ -1057,14 +1057,20 @@ describe(writePptx, () => {
 		).toEqual(["<a:t>  const a</a:t>", "<a:t> </a:t>"]);
 	});
 
-	it("places rotated text by its line box when it's rotated", async () => {
-		expect(
-			await slideXml([
-				textItem([[run("Turned")]], { baselines: undefined, rotation: 90 }),
-			]),
-		).toContain(
-			'<a:xfrm rot="5400000"><a:off x="508000" y="232969"/><a:ext cx="5080000" cy="529031"/>',
-		);
+	it("places rotated text by its line box, turned about the same center, when it's rotated", async () => {
+		const [, y, height] =
+			/<a:xfrm rot="5400000"><a:off x="508000" y="(\d+)"\/><a:ext cx="5080000" cy="(\d+)"\/>/
+				.exec(
+					(await slideXml([
+						textItem([[run("Turned")]], { baselines: undefined, rotation: 90 }),
+					])) ?? "",
+				)
+				?.map(Number) ?? [];
+
+		// The line's baseline is half its 12px leading, plus the 19px ascent Blink rounds 19.2 to, below its top, and PowerPoint's 0.746 down its 36px pitch.
+		expect(y / 12700).toBeCloseTo(20 + 6 + 19 - 0.746 * 36, 2);
+		// The 40px box's center.
+		expect((y + height / 2) / 12700).toBeCloseTo(40, 2);
 	});
 
 	it("makes a slide's first heading its title", async () => {

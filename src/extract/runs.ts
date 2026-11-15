@@ -12,6 +12,7 @@ import {
 	parseShadows,
 	transparencyOf,
 } from "../color.ts";
+import { contentAreaOf } from "../fonts.ts";
 import { ZERO_WIDTH_SPACE } from "../layout.ts";
 import { clipsToText, paintedSizeOf } from "./boxes.ts";
 import { geometryOf, scaleOf, showsIn } from "./geometry.ts";
@@ -74,36 +75,10 @@ export function alignOf(context: ExtractContext, element: Element) {
 const strokesBehind = (order: string) =>
 	/\b(?:fill|stroke)\b/.exec(order)?.[0] === "stroke";
 
-/** Families Blink on macOS gives 15% more ascent, to match the line heights of their Windows counterparts. */
-const TALLER_ON_MACOS = /^(?:courier|helvetica|times)$/i;
-
-/** How much ascent Blink on macOS adds to Courier, Helvetica and Times, as a share of their rounded content area. */
-const MACOS_ASCENT_BOOST = 0.15;
-
 const ascentRatio = (fonts: FontBook, font: string) => {
 	const { ascent, descent } = fonts.metrics(font);
 	return ascent / (ascent + descent);
 };
-
-/**
- * The content area Blink lays out and paints inline backgrounds over, given a
- * font's exact ascent and descent in layout px: each rounded to whole px, with
- * more ascent for Courier, Helvetica and Times on macOS. `shift` is how far
- * below takumi's baseline, which keeps the exact metrics, Blink puts a line's
- * as each centers its content area in the line.
- */
-export function contentAreaOf(font: string, ascent: number, descent: number) {
-	const below = Math.round(descent);
-	const rounded = Math.round(ascent);
-	const above = TALLER_ON_MACOS.test(font)
-		? rounded + Math.round((rounded + below) * MACOS_ASCENT_BOOST)
-		: rounded;
-	return {
-		ascent: above,
-		descent: below,
-		shift: (above - below - (ascent - descent)) / 2,
-	};
-}
 
 /** The content area of an element's font at its size, which sets where its lines' baselines go. */
 export function lineFontAreaOf(context: ExtractContext, element: Element) {

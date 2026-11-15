@@ -149,6 +149,32 @@ const WEIGHT_SUFFIX =
 const isGeneric = (family: string): family is Generic =>
 	Object.hasOwn(GENERICS, family);
 
+/** Families Blink on macOS gives 15% more ascent, to match the line heights of their Windows counterparts. */
+const TALLER_ON_MACOS = /^(?:courier|helvetica|times)$/i;
+
+/** How much ascent Blink on macOS adds to Courier, Helvetica and Times, as a share of their rounded content area. */
+const MACOS_ASCENT_BOOST = 0.15;
+
+/**
+ * The content area Blink lays out and paints inline backgrounds over, given a
+ * font's exact ascent and descent in layout px: each rounded to whole px, with
+ * more ascent for Courier, Helvetica and Times on macOS. `shift` is how far
+ * below takumi's baseline, which keeps the exact metrics, Blink puts a line's
+ * as each centers its content area in the line.
+ */
+export function contentAreaOf(font: string, ascent: number, descent: number) {
+	const below = Math.round(descent);
+	const rounded = Math.round(ascent);
+	const above = TALLER_ON_MACOS.test(font)
+		? rounded + Math.round((rounded + below) * MACOS_ASCENT_BOOST)
+		: rounded;
+	return {
+		ascent: above,
+		descent: below,
+		shift: (above - below - (ascent - descent)) / 2,
+	};
+}
+
 /** Finds the fonts a deck uses, from its stylesheets, its Slidev font options, and installed fonts. */
 export function createFontBook({
 	assets,
