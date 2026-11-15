@@ -31,6 +31,7 @@ const fonts: FontBook = {
 	// Only the font named "Measured" is loaded, with every character 0.5em wide.
 	advance: (font, text) =>
 		font === "Measured" ? Array.from(text).length * 0.5 : undefined,
+	kerning: () => undefined,
 	load: () => Promise.resolve([]),
 	metrics: () => ({
 		ascent: 0.8,

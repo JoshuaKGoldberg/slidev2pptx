@@ -41,6 +41,7 @@ describe(extractState, () => {
 	let extract: (
 		html: string,
 		sheet?: string,
+		stacks?: string[],
 	) => Promise<ReturnType<typeof extractState>>;
 
 	beforeAll(async () => {
@@ -59,7 +60,7 @@ describe(extractState, () => {
 				name: "Fixture Sans",
 			},
 		]);
-		extract = async (html, sheet = "") => {
+		extract = async (html, sheet = "", stacks = []) => {
 			const sheets = [baseSheet, sheet];
 			const rules = createCascade(sheets, {
 				colorScheme: "light",
@@ -69,11 +70,14 @@ describe(extractState, () => {
 				layout.prepare(1, html, { rules }, {}),
 				{ sheets },
 			);
+			const fonts = createFontBook({ assets, fonts: fontOptions, sheets });
+			// Builds load the fonts a deck uses before extracting; tests load only those they name.
+			await fonts.load(stacks);
 			return extractState(laidOut, {
 				assets,
 				backdrop: "FFFFFF",
 				canvas,
-				fonts: createFontBook({ assets, fonts: fontOptions, sheets }),
+				fonts,
 			});
 		};
 	});
@@ -607,6 +611,31 @@ describe(extractState, () => {
 		]);
 		expect(boxes[0].box.width).toBeGreaterThan(50);
 		expect(boxes[1].box.y).toBeGreaterThan(boxes[0].box.y);
+	});
+
+	it("keeps the pair kerning between runs in one font as letter spacing on the first's last character", async () => {
+		const { items } = await extract(
+			`<p style="font-family: Kerned; font-size: 40px">AT<span style="color: red">o</span></p>`,
+			`@font-face { font-family: Kerned; src: url(/fonts/league-spartan.woff2) }`,
+			["Kerned"],
+		);
+
+		expect(items[0]).toMatchObject({
+			paragraphs: [
+				{
+					runs: [
+						expect.objectContaining({ letterSpacing: 0, text: "A" }),
+						expect.objectContaining({
+							letterSpacing: expect.toSatisfy(
+								(spacing: number) => spacing < -0.4,
+							) as number,
+							text: "T",
+						}),
+						expect.objectContaining({ color: "FF0000", text: "o" }),
+					],
+				},
+			],
+		});
 	});
 
 	it("strikes text through when its decoration is line-through", async () => {

@@ -241,6 +241,24 @@ describe(createFontBook, () => {
 		expect(book.advance("League Spartan Bold", "• ")).toBeCloseTo(0.71, 2);
 	});
 
+	it.each([
+		["T", "o", true],
+		["o", "o", false],
+	])(
+		"measures the pair kerning between %j and %j in a loaded font",
+		async (first, second, kerned) => {
+			const { book } = await createBook();
+			const kerning = book.kerning("League Spartan Bold", first, second);
+
+			expect(kerning === undefined ? undefined : kerning < -0.01).toBe(kerned);
+		},
+	);
+
+	it("measures no pair kerning when a font has no file", async () => {
+		const { book } = await createBook();
+		expect(book.kerning("Nowhere Sans", "T", "o")).toBeUndefined();
+	});
+
 	it("measures no advance when a font has no file", async () => {
 		const { book } = await createBook();
 		expect(book.advance("Nowhere Sans", "• ")).toBeUndefined();

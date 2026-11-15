@@ -16,6 +16,8 @@ import { declarationsOf, splitTopLevel, unquote } from "./css.ts";
 export interface FontBook {
 	/** How wide text is in a PowerPoint font, in em, when the font is loaded and has every character. */
 	advance(font: string, text: string): number | undefined;
+	/** How far a PowerPoint font's pair kerning moves the second of two characters along, in em, when the font is loaded and has both. */
+	kerning(font: string, first: string, second: string): number | undefined;
 	/** Loads the fonts for text in these font-family stacks, returning those not yet loaded, in registration order. */
 	load(stacks: Iterable<string>): Promise<TakumiFont[]>;
 	/** Line metrics for a PowerPoint font, from its file when it's loaded. */
@@ -348,18 +350,20 @@ export function createFontBook({
 				};
 	};
 
+	/** A loaded face of a font with every character of some text. */
+	const faceFor = (font: string, codes: number[]) =>
+		facesNamed(font).find(({ face, font: file }) =>
+			codes.every(
+				(code) => inUnicodeRange(face, code) && file.hasGlyphForCodePoint(code),
+			),
+		);
+	const codesOf = (text: string) =>
+		Array.from(text, (character) => character.codePointAt(0) ?? 0);
+
 	return {
 		advance(font, text) {
-			const codes = Array.from(
-				text,
-				(character) => character.codePointAt(0) ?? 0,
-			);
-			const loaded = facesNamed(font).find(({ face, font: file }) =>
-				codes.every(
-					(code) =>
-						inUnicodeRange(face, code) && file.hasGlyphForCodePoint(code),
-				),
-			);
+			const codes = codesOf(text);
+			const loaded = faceFor(font, codes);
 			return (
 				loaded &&
 				codes.reduce(
@@ -367,6 +371,20 @@ export function createFontBook({
 					0,
 				) / loaded.font.unitsPerEm
 			);
+		},
+		kerning(font, first, second) {
+			const loaded = faceFor(font, codesOf(first + second));
+			if (!loaded) {
+				return undefined;
+			}
+
+			// Laid out together, a pair's glyphs advance by their own widths plus their kerning.
+			const { advanceWidth, glyphs } = loaded.font.layout(first + second);
+			return glyphs.length === 2
+				? (advanceWidth -
+						glyphs.reduce((sum, glyph) => sum + glyph.advanceWidth, 0)) /
+						loaded.font.unitsPerEm
+				: 0;
 		},
 		async load(stacks) {
 			await addSheetsOnce();

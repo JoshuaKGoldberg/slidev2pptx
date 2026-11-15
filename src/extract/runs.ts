@@ -47,6 +47,9 @@ const holdTrailingSpaces = (text: string) =>
 /** Gaps between runs narrower than this, in px, are kerning rather than spacing. */
 const MIN_SPACER_GAP = 0.75;
 
+/** Pair kerning smaller than this, in px, between runs is left out. */
+const MIN_KERNING = 0.25;
+
 export const NO_BREAK_SPACE = "\u00A0";
 
 const PRESERVED_NEWLINES = /^(?:pre|pre-wrap|pre-line|break-spaces)$/;
@@ -516,6 +519,10 @@ export function runsToParagraph(
 				runs.push(pad);
 			}
 
+			if (!pad) {
+				kernAcross(context, runs, style, text);
+			}
+
 			runs.push({ ...style, text });
 		}
 
@@ -587,6 +594,13 @@ function firstWordWidth(
 }
 
 /** A spacer run as wide as a gap between runs, in a run's style; undefined when the gap is only kerning. */
+
+/**
+ * Keeps the pair kerning browsers apply across abutting runs in one font,
+ * like a period colored apart from the quote before it, which PowerPoint
+ * (and takumi) leave out between runs: the previous run's last character
+ * gets the pair's kerning as letter spacing.
+ */
 export function padRun(
 	context: ExtractContext,
 	style: Omit<Run, "text">,
@@ -668,6 +682,48 @@ export function runStyle(
 		),
 		upper: style["text-transform"] === "uppercase",
 	};
+}
+
+function kernAcross(
+	context: ExtractContext,
+	runs: Run[],
+	next: Omit<Run, "text">,
+	text: string,
+) {
+	const previous = runs.at(-1);
+	if (
+		!previous ||
+		previous.pad ||
+		previous.font !== next.font ||
+		previous.size !== next.size ||
+		previous.bold !== next.bold ||
+		previous.italic !== next.italic ||
+		previous.letterSpacing ||
+		next.letterSpacing
+	) {
+		return;
+	}
+
+	const characters = Array.from(previous.text);
+	const last = characters.pop();
+	const first = Array.from(text).at(0);
+	if (last === undefined || first === undefined || /\s/.test(last + first)) {
+		return;
+	}
+
+	const kerning =
+		(context.fonts.kerning(next.font, last, first) ?? 0) * next.size;
+	if (Math.abs(kerning) < MIN_KERNING) {
+		return;
+	}
+
+	const kerned = { ...previous, letterSpacing: kerning };
+	if (characters.length) {
+		previous.text = characters.join("");
+		runs.push({ ...kerned, lineBreak: undefined, text: last });
+	} else {
+		runs[runs.length - 1] = kerned;
+	}
 }
 
 /** Whether a run starts a new line: it jumps back left and down (runs in other fonts, like inline code, sit at other heights on one line). */
