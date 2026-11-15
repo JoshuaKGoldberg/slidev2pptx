@@ -549,6 +549,40 @@ describe(extractState, () => {
 		expect(items[0]).toMatchObject({ style: { align: "center" } });
 	});
 
+	it("draws an element as one picture when its descendants would draw too many shapes", async () => {
+		const { items } = await extract(
+			`<div>${'<div style="height: 1px; background: red"></div>'.repeat(401)}</div>`,
+		);
+
+		expect(items.map((item) => item.kind)).toEqual(["raster"]);
+	});
+
+	it.each([
+		["plain runs", "<span>a</span>"],
+		["hidden elements", '<span style="display: none"><b>a</b></span>'],
+		["runs highlighted alike", '<span style="background: yellow">a</span>'],
+	])("keeps text native however many %s it holds", async (_, span) => {
+		const { items } = await extract(`<p>${span.repeat(401)}x</p>`);
+
+		expect(items.map((item) => item.kind)).not.toContain("raster");
+	});
+
+	it("draws abutting runs highlighted alike as one box per line", async () => {
+		const { items } = await extract(
+			`<p style="width: 60px">${'<span style="background: yellow">aa </span>'.repeat(6)}<span style="background: red">b</span></p>`,
+		);
+		const boxes = items.filter((item) => item.kind === "box");
+
+		// Three tokens fit on each line, and the red one wraps onto a third.
+		expect(boxes).toEqual([
+			expect.objectContaining({ fill: { color: "FFFF00", transparency: 0 } }),
+			expect.objectContaining({ fill: { color: "FFFF00", transparency: 0 } }),
+			expect.objectContaining({ fill: { color: "FF0000", transparency: 0 } }),
+		]);
+		expect(boxes[0].box.width).toBeGreaterThan(50);
+		expect(boxes[1].box.y).toBeGreaterThan(boxes[0].box.y);
+	});
+
 	it("strikes text through when its decoration is line-through", async () => {
 		const { items } = await extract(
 			`<p><span style="text-decoration-line: line-through">old</span> new</p>`,

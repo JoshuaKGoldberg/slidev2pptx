@@ -1,7 +1,7 @@
 import type { ExtractOptions } from "./extract/context.ts";
 import type { LaidOutBox, Layout } from "./layout.ts";
 
-import { paintItems } from "./extract/boxes.ts";
+import { boxStyle, paintItems } from "./extract/boxes.ts";
 import {
 	createExtractContext,
 	isMath,
@@ -25,8 +25,8 @@ import {
 } from "./extract/text.ts";
 import { isBackgroundOnly } from "./layout.ts";
 
-/** Elements with more descendants than this render as one image instead of shapes. */
-const MAX_NATIVE_DESCENDANTS = 400;
+/** Elements whose descendants would draw more shapes than this render as one image instead. */
+const MAX_NATIVE_SHAPES = 400;
 
 /** Elements that render only in a browser, which PowerPoint can't show. */
 const UNSUPPORTED_EMBEDS = [
@@ -41,8 +41,46 @@ export function extractState(layout: Layout, options: ExtractOptions) {
 	const context = createExtractContext(layout, options);
 	const { styleOf } = context;
 
+	const shapes = new Map<Element, number>();
+
+	/**
+	 * Roughly how many shapes an element's descendants draw. Plain inline runs
+	 * join their paragraph's text, and a run of abutting siblings with the same
+	 * background, like highlighted code tokens, shares one box; what isn't
+	 * displayed draws nothing; anything else may be a shape of its own.
+	 */
+	const shapesUnder = (element: Element): number => {
+		let count = shapes.get(element);
+		if (count !== undefined) {
+			return count;
+		}
+
+		count = 0;
+		let previous: string | undefined;
+		for (const child of element.children) {
+			const style = styleOf(child);
+			if (style.display === "none") {
+				previous = undefined;
+				continue;
+			}
+
+			const inline = style.display === "inline" && !child.closest("svg");
+			const painted = inline && boxStyle(context, child, 1);
+			const background = painted ? style["background-color"] : undefined;
+			if (!inline || (painted && background !== previous)) {
+				count += 1;
+			}
+
+			previous = background;
+			count += shapesUnder(child);
+		}
+
+		shapes.set(element, count);
+		return count;
+	};
+
 	const isDense = (element: Element) =>
-		element.querySelectorAll("*").length > MAX_NATIVE_DESCENDANTS;
+		shapesUnder(element) > MAX_NATIVE_SHAPES;
 
 	const isClippedAway = (element: Element, laidOut: LaidOutBox) => {
 		const style = styleOf(element);

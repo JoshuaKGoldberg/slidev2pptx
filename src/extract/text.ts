@@ -124,13 +124,20 @@ export function codeItem(context: ExtractContext, pre: Element) {
 	});
 }
 
-/** Inline elements with a background or border ("pills", like inline code) as boxes, one per line they span. */
+/**
+ * Inline elements with a background or border ("pills", like inline code) as
+ * boxes, one per line they span. Abutting sibling runs painted alike with only
+ * a plain fill, like highlighted tokens, share one box, as Chromium paints them
+ * as one band: separate boxes would add seams and shapes.
+ */
 export function inlinePills(
 	context: ExtractContext,
 	element: Element,
 	entry: TextRuns,
 ) {
 	const { origin, scale } = runFrame(context, entry);
+	const pills: Pill[] = [];
+	let latest: Pill | undefined;
 	for (const child of element.querySelectorAll("*")) {
 		const style =
 			context.styleOf(child).display === "inline"
@@ -141,36 +148,94 @@ export function inlinePills(
 		}
 
 		const lines = lineBoundsOf(context, entry, child, element);
-
 		const insets = context.contentInsets(child);
-		const label = context.labelOf(child);
 		for (const [index, line] of lines.entries()) {
 			const first = index === 0;
 			const last = index === lines.length - 1;
-			const left = line.left - (first ? insets.left : 0);
-			const right = line.right + (last ? insets.right : 0);
-			const top = line.top - insets.top;
-			context.push(
+			const pill = {
+				bottom: line.bottom + insets.bottom,
 				child,
-				...boxItems(style, {
-					box: {
-						height: (line.bottom + insets.bottom - top) * scale,
-						width: (right - left) * scale,
-						x: origin.x + left * scale,
-						y: origin.y + top * scale,
-					},
-					flip: false,
-					key: `${pathOf(child)}:${String(Math.round(line.left))}`,
-					label,
-					rotation: 0,
-					scale,
-					sides: SIDES.filter(
-						(side) => (side !== "left" || first) && (side !== "right" || last),
-					),
-				}),
-			);
+				first,
+				last,
+				left: line.left - (first ? insets.left : 0),
+				right: line.right + (last ? insets.right : 0),
+				style,
+				top: line.top - insets.top,
+			};
+			if (latest && abuts(latest, pill)) {
+				latest.right = pill.right;
+				latest.last = pill.last;
+			} else {
+				pills.push(pill);
+				latest = pill;
+			}
 		}
 	}
+
+	for (const pill of pills) {
+		context.push(
+			pill.child,
+			...boxItems(pill.style, {
+				box: {
+					height: (pill.bottom - pill.top) * scale,
+					width: (pill.right - pill.left) * scale,
+					x: origin.x + pill.left * scale,
+					y: origin.y + pill.top * scale,
+				},
+				flip: false,
+				key: `${pathOf(pill.child)}:${String(Math.round(pill.left))}`,
+				label: context.labelOf(pill.child),
+				rotation: 0,
+				scale,
+				sides: SIDES.filter(
+					(side) =>
+						(side !== "left" || pill.first) && (side !== "right" || pill.last),
+				),
+			}),
+		);
+	}
+}
+
+/** One line's box behind an inline element, in its text entry's run space. */
+interface Pill {
+	bottom: number;
+	child: Element;
+	first: boolean;
+	last: boolean;
+	left: number;
+	right: number;
+	style: NonNullable<ReturnType<typeof boxStyle>>;
+	top: number;
+}
+
+/** How far apart, in CSS px, two pills' edges may be and still count as touching. */
+const PILL_TOLERANCE = 0.5;
+
+/** The solid color a pill is filled with, if that's all it paints (no border, rounding, shadow or gradient). */
+function plainFillOf({ style }: Pill) {
+	return !style.border &&
+		!style.edges &&
+		!style.radius &&
+		!style.shadow &&
+		style.fill &&
+		"color" in style.fill
+		? style.fill
+		: undefined;
+}
+
+/** Whether a pill continues another on its line, both siblings filled alike and plainly. */
+function abuts(previous: Pill, next: Pill) {
+	const before = plainFillOf(previous);
+	const after = plainFillOf(next);
+	return (
+		previous.child.parentElement === next.child.parentElement &&
+		after !== undefined &&
+		before?.color === after.color &&
+		before.transparency === after.transparency &&
+		Math.abs(previous.top - next.top) < PILL_TOLERANCE &&
+		Math.abs(previous.bottom - next.bottom) < PILL_TOLERANCE &&
+		Math.abs(previous.right - next.left) < PILL_TOLERANCE
+	);
 }
 
 /**
