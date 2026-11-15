@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -62,6 +63,72 @@ export async function renderWithPowerPoint(pptx: string, directory: string) {
 		.filter((file) => file.endsWith(".png"))
 		.sort()
 		.map((file) => path.join(directory, file));
+}
+
+/**
+ * Renders some of a .pptx's shown slides to PNGs, by rendering a copy of it
+ * with every other slide hidden.
+ * @param pptx The presentation to render.
+ * @param indices Positions among the shown slides, in the order to render them.
+ * @param directory Where to write the PNGs.
+ * @returns One PNG per index, in order.
+ */
+export async function renderSlidesWithPowerPoint(
+	pptx: string,
+	indices: number[],
+	directory: string,
+) {
+	const zip = await JSZip.loadAsync(await fs.readFile(pptx));
+	const slides = await shownSlides(zip);
+	const kept = new Set(indices.map((index) => slides[index]));
+	for (const slide of slides) {
+		if (!kept.has(slide)) {
+			const xml = await zip.file(slide)?.async("string");
+			if (xml) {
+				zip.file(slide, xml.replace(/<p:sld\b/, '<p:sld show="0"'));
+			}
+		}
+	}
+
+	const copy = `${directory}.pptx`;
+	await fs.mkdir(path.dirname(copy), { recursive: true });
+	await fs.writeFile(copy, await zip.generateAsync({ type: "nodebuffer" }));
+	try {
+		const rendered = await renderWithPowerPoint(copy, directory);
+		const order = [...kept].sort(
+			(a, b) => slides.indexOf(a) - slides.indexOf(b),
+		);
+		return indices.map((index) => rendered[order.indexOf(slides[index])]);
+	} finally {
+		await fs.rm(copy, { force: true });
+	}
+}
+
+/** The part names of a presentation's shown slides, in order. */
+async function shownSlides(zip: JSZip) {
+	const presentation = await zip.file("ppt/presentation.xml")?.async("string");
+	const relationships = await zip
+		.file("ppt/_rels/presentation.xml.rels")
+		?.async("string");
+	const targets = new Map(
+		[
+			...(relationships ?? "").matchAll(
+				/<Relationship\b[^>]*?\sId="([^"]+)"[^>]*?\sTarget="([^"]+)"/g,
+			),
+		].map(([, id, target]) => [id, path.posix.join("ppt", target)]),
+	);
+	const slides = [];
+	for (const [, id] of (presentation ?? "").matchAll(
+		/<p:sldId\b[^>]*?\sr:id="([^"]+)"/g,
+	)) {
+		const slide = targets.get(id);
+		const xml = slide && (await zip.file(slide)?.async("string"));
+		if (slide && xml && !/<p:sld\b[^>]*\sshow="(?:0|false)"/.test(xml)) {
+			slides.push(slide);
+		}
+	}
+
+	return slides;
 }
 
 /** Has PowerPoint save a deck as a PDF, killing PowerPoint if it hangs along the way. */

@@ -22,6 +22,30 @@ export interface ImageComparison {
 	ssim: number;
 }
 
+/**
+ * Thresholds on the normalized comparison, calibrated on states that look the
+ * same (about 0.4% changed, 0.991 SSIM) and that visibly differ (over 1%).
+ * They rank what reviewers look at; reviewers decide what's a real difference.
+ */
+export const THRESHOLDS = {
+	changed: { fail: 0.03, review: 0.008 },
+	ssim: { fail: 0.97, review: 0.985 },
+};
+
+export type Verdict = "fail" | "missing" | "pass" | "review";
+
+export function verdictOf(comparison: ImageComparison | undefined): Verdict {
+	return !comparison
+		? "missing"
+		: comparison.ssim < THRESHOLDS.ssim.fail ||
+			  comparison.changed > THRESHOLDS.changed.fail
+			? "fail"
+			: comparison.ssim < THRESHOLDS.ssim.review ||
+				  comparison.changed > THRESHOLDS.changed.review
+				? "review"
+				: "pass";
+}
+
 /** Compares two renderings, writing a heatmap of their differences. */
 export async function compareImages(
 	expected: string,

@@ -15,7 +15,8 @@ import { parseArgs, promisify } from "node:util";
 import type { BuildPptxResult } from "../src/types.ts";
 import type { ConversionLog } from "./pptx2slidev/convert.ts";
 
-import { compareImages } from "./compare/images.ts";
+import { compareImages, verdictOf } from "./compare/images.ts";
+import { type RenderedState, rerenderMisses } from "./compare/rerender.ts";
 import { deckPath } from "./corpus/paths.ts";
 import { renderWithPowerPoint } from "./render/powerpoint.ts";
 import { renderWithSlidev } from "./render/slidev.ts";
@@ -23,16 +24,6 @@ import { renderWithSlidev } from "./render/slidev.ts";
 const run = promisify(execFile);
 
 const STEPS = ["convert", "slidev", "build", "render", "compare"] as const;
-
-/**
- * Thresholds on the normalized comparison, calibrated on states that look the
- * same (about 0.4% changed, 0.991 SSIM) and that visibly differ (over 1%).
- * They rank what reviewers look at; reviewers decide what's a real difference.
- */
-export const THRESHOLDS = {
-	changed: { fail: 0.03, review: 0.008 },
-	ssim: { fail: 0.97, review: 0.985 },
-};
 
 const { positionals, values } = parseArgs({
 	allowPositionals: true,
@@ -174,15 +165,32 @@ await step("compare", paths.report, async () => {
 		lastStates.set(Number(path.basename(file).slice(0, 3)), index);
 	}
 
+	const rendered: RenderedState[] = [];
+	for (const [index, file] of slidev.entries()) {
+		const actual = pptx[index];
+		const diff = path.join(paths.diff, path.basename(file));
+		rendered.push({
+			actual,
+			comparison: await compareImages(file, actual, diff),
+			diff,
+			expected: file,
+			index,
+			render: 1,
+		});
+	}
+
+	await rerenderMisses(
+		paths.clicks,
+		rendered,
+		path.join(directory, "pptx-png-again"),
+	);
+
 	const states = [];
 	for (const [index, file] of slidev.entries()) {
 		const name = path.basename(file, ".png");
 		const slide = Number(name.slice(0, 3));
 		const click = Number(name.slice(4)) - 1;
-		const actual = pptx.at(index);
-		const comparison = actual
-			? await compareImages(file, actual, path.join(paths.diff, `${name}.png`))
-			: undefined;
+		const { actual, comparison, render } = rendered[index];
 		const originalFile =
 			lastStates.get(slide) === index ? original.at(slide - 1) : undefined;
 		const step1 = originalFile
@@ -192,16 +200,8 @@ await step("compare", paths.report, async () => {
 					path.join(paths.diff, `${name}-original.png`),
 				)
 			: undefined;
-		const verdict = !comparison
-			? "missing"
-			: comparison.ssim < THRESHOLDS.ssim.fail ||
-				  comparison.changed > THRESHOLDS.changed.fail
-				? "fail"
-				: comparison.ssim < THRESHOLDS.ssim.review ||
-					  comparison.changed > THRESHOLDS.changed.review
-					? "review"
-					: "pass";
-		if (verdict !== "pass" && actual) {
+		const verdict = verdictOf(comparison);
+		if (verdict !== "pass") {
 			const panels = [
 				...(originalFile ? [panel(originalFile, "Original (PowerPoint)")] : []),
 				panel(file, "Slidev (Chromium)"),
@@ -234,6 +234,8 @@ await step("compare", paths.report, async () => {
 			click,
 			name,
 			original: step1,
+			// Only states that didn't pass at first are rendered again.
+			render,
 			slide,
 			step2: comparison,
 			verdict,
