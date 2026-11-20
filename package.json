@@ -56,7 +56,7 @@
 	"devDependencies": {
 		"@eslint-community/eslint-plugin-eslint-comments": "4.8.1",
 		"@eslint/js": "10.0.1",
-		"@eslint/markdown": "8.0.3",
+		"@eslint/markdown": "9.0.0",
 		"@release-it/conventional-changelog": "12.0.0",
 		"@slidev/cli": "53.1.0",
 		"@slidev/client": "53.1.0",
