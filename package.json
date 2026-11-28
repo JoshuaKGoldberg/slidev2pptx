@@ -42,7 +42,7 @@
 		"@takumi-rs/core": "^2.20.0",
 		"@takumi-rs/helpers": "^2.20.0",
 		"css-tree": "^3.2.1",
-		"es-module-lexer": "^2.3.2",
+		"es-module-lexer": "^3.0.0",
 		"fontkit": "^3.0.0",
 		"image-size": "^2.1.0",
 		"jpeg-js": "^0.4.4",
